@@ -37,13 +37,14 @@ void subtract_correction(T * data, T const * correction, size_t n, size_t stride
 // from a level with n/2 element
 template <class T>
 void recompose_level_1D(T * data, const vector<size_t>& levels, const vector<size_t>& strides, int current_level){
-	size_t stride = strides[current_level];
 	size_t n = levels[current_level];
+	size_t stride = strides[current_level];
+	size_t next_n = levels[current_level + 1];
 	size_t next_stride = strides[current_level + 1];
 	auto load_v = compute_load_vector(data + next_stride, n, stride);
 	auto correction = compute_correction(load_v.data(), n, (T)stride);
 	subtract_correction(data, correction.data(), n, stride);
-	recover_from_interpolant_difference(data, data + next_stride, n, stride, !(n&1));
+	recover_from_interpolant_difference(data, data + next_stride, n, stride, !(next_n&1));
 }
 
 template <class T>
@@ -63,6 +64,16 @@ void recompose(T * data, size_t n, size_t target_level){
 		stride <<= 1;
 		n = (n+1) >> 1;
 	}
+	cerr << "Ns: ";
+	for(int i=0; i<=target_level; i++){
+		cerr << levels[i] << " ";
+	}
+	cerr << endl;
+	cerr << "strides: ";
+	for(int i=0; i<=target_level; i++){
+		cerr << strides[i] << " ";
+	}
+	cerr << endl;
 	for(int i=0; i<target_level; i++){
 		recompose_level(data, levels, strides, i);
 	}
