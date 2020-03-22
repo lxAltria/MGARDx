@@ -4,6 +4,7 @@
 #include <vector>
 #include <iomanip>
 #include "decompose.hpp"
+#include "recompose.hpp"
 
 using namespace std;
 
@@ -37,7 +38,7 @@ void compute_interpolant_difference(const vector<T>& data, const vector<T>& data
 
 int main(int argc, char ** argv){
 	const int n = 17;
-	const int target_level = 3;
+	const int target_level = atoi(argv[1]);
 	const int target_stride = 1 << target_level;
 	vector<double> data(n);
 	for(int i=0; i<n; i++){
@@ -61,5 +62,15 @@ int main(int argc, char ** argv){
 		cout << data[i] << " ";
 	}
 	cout << endl;
-
+	MGARD::recompose(data.data(), n, target_level);
+	cerr << "Origin data: " << endl;
+	for(int i=0; i<n; i++){
+		cerr << data_[i] << " ";
+	}
+	cerr << endl;
+	cerr << "Recomposed data: " << endl;
+	for(int i=0; i<n; i++){
+		cerr << data[i] << " ";
+	}
+	cerr << endl;
 }
