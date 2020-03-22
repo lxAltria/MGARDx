@@ -9,75 +9,124 @@ namespace MGARD{
 using namespace std;
 
 template <class T>
-void recover_from_interpolant_difference(T const * data, T * coeff, size_t n, size_t stride, bool even){
-	T const * prev = data;			// adjacent data in N_l (left)
-	T const * next = data + stride;	// adjacent data in N_l (right)
-	for(int i=0; i<n-1; i++){
-		*coeff += (*prev + *next) / 2; 
-		prev = next;
-		next += stride;
-		coeff += stride;
+class Recomposer{
+public:
+	Recomposer(){
+		dims = vector<vector<size_t>>();
+		h_l = vector<vector<size_t>>();
+	};
+	~Recomposer(){
+		if(data_buffer) free(data_buffer);
+		if(correction_buffer) free(correction_buffer);	
+		if(load_v_buffer) free(load_v_buffer);
+	};
+	void recompose(T * data_, const vector<size_t>& dims_, size_t target_level){
+		// compute n_nodal in each level
+		for(int i=0; i<dims_.size(); i++){
+			dims.push_back(vector<size_t>(target_level + 1));
+			h_l.push_back(vector<size_t>(target_level + 1));
+			int n = dims_[i];
+			size_t h = 1;
+			for(int j=0; j<=target_level; j++){
+				dims[i][target_level - j] = n;
+				h_l[i][target_level - j] = h; 
+				n = (n >> 1) + 1;
+				h <<= 1;
+			}
+			cerr << "Ns: ";
+			for(int j=0; j<=target_level; j++){
+				cerr << dims[i][j] << " ";
+			}
+			cerr << endl;
+		}
+		// compute constant strides of each dimension
+		size_t stride = 1;
+		strides.reserve(dims_.size());
+		for(int i=0; i<dims_.size(); i++){
+			strides[i] = stride;
+			stride *= dims_[i];
+		}
+		// init buffers 
+		size_t buffer_size = batchsize * (*max_element(dims_.begin(), dims_.end())) * sizeof(T);
+		if(data_buffer) free(data_buffer);
+		if(correction_buffer) free(correction_buffer);
+		if(load_v_buffer) free(load_v_buffer);
+		data_buffer = (T *) malloc(buffer_size);
+		correction_buffer = (T *) malloc(buffer_size);
+		load_v_buffer = (T *)malloc(buffer_size);
+		// recompose
+		data = data_;		
+		for(int i=0; i<target_level; i++){
+			cerr << "recompose level " << i << endl;
+			recompose_level(i);
+		}
 	}
-	if(even){
-		// n in N_l is even, deal with the last coefficient
-		*coeff += *prev;
+private:
+	size_t n_nodal = 0;
+	size_t n_coeff = 0;
+	unsigned int batchsize = 1;
+	vector<vector<size_t>> dims;// dims for each level
+	vector<vector<size_t>> h_l;	// interval length for each dimension
+	vector<size_t> strides;		// strides for each dimension CONSTANT
+	T * data = NULL;			// pointer to the original data
+	T * data_buffer = NULL;		// buffer for reordered data
+	T * nodal_buffer = NULL;	// starting position for nodal values
+	T * coeff_buffer = NULL;	// starting position for coefficients
+	T * load_v_buffer = NULL;
+	T * correction_buffer = NULL;
+
+	// reorder the data to original order (insert coeffcients between nodal values)
+	void data_reorder(T * data_pos, size_t n){
+		const T * nodal_pos = nodal_buffer;
+		const T * coeff_pos = coeff_buffer;
+		T * cur_data_pos = data_pos;
+		for(int i=0; i<n_coeff; i++){
+			*(cur_data_pos++) = *(nodal_pos++);
+			*(cur_data_pos++) = *(coeff_pos++);
+		}
+		*(cur_data_pos++) = *(nodal_pos++);
+		if(!(n & 1)){
+			// if even, the last coefficient equals to the interpolant
+			// of the last two nodal values
+			*cur_data_pos = (nodal_pos[-1] + nodal_pos[0]) / 2;
+		}
+	}
+
+	void recover_from_interpolant_difference(){
+		for(int i=0; i<n_coeff; i++){
+			coeff_buffer[i] += (nodal_buffer[i] + nodal_buffer[i+1]) / 2; 
+		}
+	}
+
+	void subtract_correction(){
+		for(int i=0; i<n_nodal; i++){
+			nodal_buffer[i] -= correction_buffer[i];
+		}
+	}
+
+	// recompose a level with n element and the given stride
+	// from a level with n/2 element
+	void recompose_level_1D(T * data_pos, size_t n, size_t stride, T h){
+		cerr << n << endl;
+		memcpy(data_buffer, data_pos, n*sizeof(T));
+		n_nodal = (n >> 1) + 1;
+		n_coeff = n - n_nodal;
+		nodal_buffer = data_buffer;
+		coeff_buffer = data_buffer + n_nodal;
+		compute_load_vector(n_nodal, n_coeff, coeff_buffer, h, load_v_buffer);
+		compute_correction(load_v_buffer, n_nodal, h, correction_buffer);
+		subtract_correction();
+		recover_from_interpolant_difference();
+		data_reorder(data_pos, n);
+	}
+
+	void recompose_level(size_t level){
+		// decompose along each dimension
+		for(int i=0; i<dims.size(); i++){
+			recompose_level_1D(data, dims[i][level+1], strides[i], (T) h_l[i][level+1]);
+		}
 	}	
-}
-
-template <class T>
-void subtract_correction(T * data, T const * correction, size_t n, size_t stride){
-	T * data_pos = data;
-	for(int i=0; i<n; i++){
-		*data_pos -= correction[i];
-		data_pos += stride;
-	}
-}
-
-// recompose a level with n element and the given stride
-// from a level with n/2 element
-template <class T>
-void recompose_level_1D(T * data, const vector<size_t>& levels, const vector<size_t>& strides, int current_level){
-	size_t n = levels[current_level];
-	size_t stride = strides[current_level];
-	size_t next_n = levels[current_level + 1];
-	size_t next_stride = strides[current_level + 1];
-	auto load_v = compute_load_vector(data + next_stride, n, stride, !(next_n&1));
-	auto correction = compute_correction(load_v.data(), n, (T)stride, !(next_n&1));
-	subtract_correction(data, correction.data(), n, stride);
-	recover_from_interpolant_difference(data, data + next_stride, n, stride, !(next_n&1));
-}
-
-template <class T>
-void recompose_level(T * data, const vector<size_t>& levels, const vector<size_t>& strides, int current_level){
-	// decompose along each dimension
-	recompose_level_1D(data, levels, strides, current_level);
-}
-
-template <class T>
-void recompose(T * data, size_t n, size_t target_level){
-	size_t stride = 1;
-	vector<size_t> levels(target_level + 1);
-	vector<size_t> strides(target_level + 1);
-	for(int i=0; i<=target_level; i++){
-		levels[target_level - i] = n;
-		strides[target_level - i] = stride; 
-		stride <<= 1;
-		n = (n+1) >> 1;
-	}
-	cerr << "Ns: ";
-	for(int i=0; i<=target_level; i++){
-		cerr << levels[i] << " ";
-	}
-	cerr << endl;
-	cerr << "strides: ";
-	for(int i=0; i<=target_level; i++){
-		cerr << strides[i] << " ";
-	}
-	cerr << endl;
-	for(int i=0; i<target_level; i++){
-		recompose_level(data, levels, strides, i);
-	}
-}
+};
 
 }
 

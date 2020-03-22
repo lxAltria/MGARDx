@@ -53,14 +53,20 @@ int main(int argc, char ** argv){
 	cout << endl;
 	// direct interpolant
 	compute_interpolant_difference(data, data_, n, target_stride);
-	MGARD::decompose(data.data(), n, target_level);
+	// MGARD::decompose(data.data(), n, target_level);
+	MGARD::Decomposer<double> decomposer;
+	vector<size_t> dims(1, n);
+	decomposer.decompose(data.data(), dims, target_level);
 	// MGARD interpolant
-	compute_interpolant_difference(data, data_, n, target_stride);
-	for(int i=0; i<n; i+=target_stride){
-		cout << data[i] << " ";
+	vector<double> data_reordered = vector<double>(n, 0);
+	for(int i=0, j=0; i<n; i+=target_stride, j++){
+		cout << data[j] << " ";
+		data_reordered[i] = data[j];
 	}
 	cout << endl;
-	MGARD::recompose(data.data(), n, target_level);
+	compute_interpolant_difference(data_reordered, data_, n, target_stride);
+	MGARD::Recomposer<double> recomposer;
+	recomposer.recompose(data.data(), dims, target_level);
 	cerr << "Origin data: " << endl;
 	for(int i=0; i<n; i++){
 		cerr << data_[i] << " ";
