@@ -18,7 +18,8 @@ vector<T> rand_vec(int n, T scale=1){
 }
 
 template <class T>
-void compute_interpolant_difference(const vector<T>& data, const vector<T>& data_, int n, int target_stride){
+void compute_interpolant_difference(vector<T>& data, const vector<T>& data_, int n, int target_stride){
+	data.push_back(data.back());
 	double interpolant = 0;
 	double mse = 0;
 	for(int i=0; i<n; i++){
@@ -34,11 +35,12 @@ void compute_interpolant_difference(const vector<T>& data, const vector<T>& data
 	}
 	cerr << endl;
 	cerr << "MSE = " << mse << endl;
+	data.pop_back();
 }
 
 int main(int argc, char ** argv){
-	const int n = 17;
-	const int target_level = atoi(argv[1]);
+	const int n = atoi(argv[1]);
+	const int target_level = atoi(argv[2]);
 	const int target_stride = 1 << target_level;
 	vector<double> data(n);
 	for(int i=0; i<n; i++){
@@ -52,10 +54,6 @@ int main(int argc, char ** argv){
 	// direct interpolant
 	compute_interpolant_difference(data, data_, n, target_stride);
 	MGARD::decompose(data.data(), n, target_level);
-	// for(int i=0; i<n; i++){
-	// 	cout << data[i] << " ";
-	// }
-	// cout << endl;
 	// MGARD interpolant
 	compute_interpolant_difference(data, data_, n, target_stride);
 	for(int i=0; i<n; i+=target_stride){

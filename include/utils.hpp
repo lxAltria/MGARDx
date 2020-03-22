@@ -14,7 +14,7 @@ using namespace std;
 // @param n: number of points in current level
 // @param stride: stride in current level (N_l)
 template <class T>
-vector<T> compute_load_vector(T const * coeff, size_t n, size_t stride){
+vector<T> compute_load_vector(T const * coeff, size_t n, size_t stride, bool even){
 	vector<T> load_v_buffer(n);
 	T const * prev = coeff;
 	T const * next = coeff + stride;
@@ -29,6 +29,10 @@ vector<T> compute_load_vector(T const * coeff, size_t n, size_t stride){
 	}
 	// last nodal value
 	load_v_buffer[n-1] = *prev * ah;
+	if(even) {
+		// if n is even in the finer level
+		load_v_buffer[n-1] += *next * ah;
+	}
 	return load_v_buffer;
 }
 
@@ -38,14 +42,19 @@ vector<T> compute_load_vector(T const * coeff, size_t n, size_t stride){
 // @param load_v: load vector
 // @param h: interval length
 // @param n: number of points in current level
+// @param even: whether number of points in the finer level is even
 // output in correction_buffer
 template <class T>
-vector<T> compute_correction(T * load_v_buffer, size_t n, T h){
+vector<T> compute_correction(T * load_v_buffer, size_t n, T h, bool even){
 	// Thomas algorithm for solving M_l x = load_v
 	// forward pass
 	// simplified algorithm
 	T * d = load_v_buffer;
-	vector<T> b(n, h/3);
+	vector<T> b(n, h*2/3);
+	b[0] = h/3;
+	// change the last basis func to account for the extra element
+	// lead to mass matrix change
+	b[n-1] = even ? h*5/6 : h/3;
 	T c = h/6;
 	for(int i=1; i<n; i++){
 		auto w = c / b[i-1];

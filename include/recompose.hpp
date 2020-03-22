@@ -41,8 +41,8 @@ void recompose_level_1D(T * data, const vector<size_t>& levels, const vector<siz
 	size_t stride = strides[current_level];
 	size_t next_n = levels[current_level + 1];
 	size_t next_stride = strides[current_level + 1];
-	auto load_v = compute_load_vector(data + next_stride, n, stride);
-	auto correction = compute_correction(load_v.data(), n, (T)stride);
+	auto load_v = compute_load_vector(data + next_stride, n, stride, !(next_n&1));
+	auto correction = compute_correction(load_v.data(), n, (T)stride, !(next_n&1));
 	subtract_correction(data, correction.data(), n, stride);
 	recover_from_interpolant_difference(data, data + next_stride, n, stride, !(next_n&1));
 }

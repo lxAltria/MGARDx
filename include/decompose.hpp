@@ -14,7 +14,7 @@ using namespace std;
 // overwrite the data in N_l \ N_(l-1) in place
 template <class T>
 void compute_interpolant_difference(T const * data, T * coeff, size_t n, size_t stride, bool even){
-	T const * prev = data;					// adjacent data in N_l (left)
+	T const * prev = data;			// adjacent data in N_l (left)
 	T const * next = data + stride;	// adjacent data in N_l (right)
 	for(int i=0; i<n-1; i++){
 		*coeff -= (*prev + *next) / 2; 
@@ -44,8 +44,8 @@ void decompose_level_1D(T * data, size_t n, size_t stride){
 	size_t next_n = (n+1) >> 1;
 	size_t next_stride = stride << 1;
 	compute_interpolant_difference(data, data + stride, next_n, next_stride, !(n&1));
-	auto load_v = compute_load_vector(data + stride, next_n, next_stride);
-	auto correction = compute_correction(load_v.data(), next_n, (T)next_stride);
+	auto load_v = compute_load_vector(data + stride, next_n, next_stride, !(n&1));
+	auto correction = compute_correction(load_v.data(), next_n, (T)next_stride, !(n&1));
 	add_correction(data, correction.data(), next_n, next_stride);
 }
 
