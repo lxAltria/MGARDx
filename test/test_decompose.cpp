@@ -1,0 +1,65 @@
+#include <iostream>
+#include <ctime>
+#include <cstdlib>
+#include <vector>
+#include <iomanip>
+#include "decompose.hpp"
+
+using namespace std;
+
+template <class T>
+vector<T> rand_vec(int n, T scale=1){
+	vector<T> result(n);
+	for(int i=0; i<n; i++){
+		result[i] = scale * ( (rand() * 2.0 / RAND_MAX) - 1);
+	}
+	return result;
+}
+
+template <class T>
+void compute_interpolant_difference(const vector<T>& data, const vector<T>& data_, int n, int target_stride){
+	double interpolant = 0;
+	double mse = 0;
+	for(int i=0; i<n; i++){
+		int residue = i % target_stride;
+		int ind = i / target_stride;
+		if(residue){
+			double lambda = residue * 1.0 / target_stride;
+			interpolant = (1 - lambda) * data[ind * target_stride] + lambda * data[(ind+1)*target_stride];
+		}
+		else interpolant = data[i];
+		mse += (data_[i] - interpolant) * (data_[i] - interpolant);
+		cerr << setprecision(4) << data_[i] - interpolant << " ";
+	}
+	cerr << endl;
+	cerr << "MSE = " << mse << endl;
+}
+
+int main(int argc, char ** argv){
+	const int n = 17;
+	const int target_level = 3;
+	const int target_stride = 1 << target_level;
+	vector<double> data(n);
+	for(int i=0; i<n; i++){
+		data[i] = 0.05 * (i - 5) * (i - 10) * (i - 15); 
+	}
+	auto data_(data);
+	for(int i=0; i<n; i+=target_stride){
+		cout << data[i] << " ";
+	}
+	cout << endl;
+	// direct interpolant
+	compute_interpolant_difference(data, data_, n, target_stride);
+	MGARD::decompose(data.data(), n, target_level);
+	// for(int i=0; i<n; i++){
+	// 	cout << data[i] << " ";
+	// }
+	// cout << endl;
+	// MGARD interpolant
+	compute_interpolant_difference(data, data_, n, target_stride);
+	for(int i=0; i<n; i+=target_stride){
+		cout << data[i] << " ";
+	}
+	cout << endl;
+
+}
