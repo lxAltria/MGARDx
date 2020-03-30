@@ -65,6 +65,9 @@ int main(int argc, char ** argv){
 	}
 	cout << endl;
 	compute_interpolant_difference(data_reordered, data_, n, target_stride);
+    for(int i=(n+1)/2; i<n; i++){
+        data[i] = 0;
+    }
 	MGARD::Recomposer<double> recomposer;
 	recomposer.recompose(data.data(), dims, target_level);
 	cerr << "Origin data: " << endl;
