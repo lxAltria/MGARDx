@@ -84,37 +84,6 @@ private:
 			*nodal_pos = 2*cur_data_pos[0] - nodal_pos[-1];
 		}
 	}
-	// reorder the data to put all the coefficient to the back
-	/*
-		oxoxo		oooxx		oooxx
-		xxxxx	(1)	xxxxx	(2)	oooxx
-		oxoxo	=>	oooxx	=>	oooxx
-		xxxxx		xxxxx		xxxxx
-		oxoxo		oooxx		xxxxx
-	*/
-	void data_reorder_2D(T * data_pos, size_t n1_nodal, size_t n1_coeff, size_t n2_nodal, size_t n2_coeff, size_t stride){
-		size_t n1 = n1_nodal + n1_coeff;
-		size_t n2 = n2_nodal + n2_coeff;
-		T * cur_data_pos = data_pos;
-		T * nodal_pos = data_buffer;
-		T * coeff_pos = data_buffer + n2_nodal;
-		// do reorder (1)
-		for(int i=0; i<n1; i++){
-			data_reorder_1D(cur_data_pos, n2_nodal, n2_coeff, nodal_pos, coeff_pos);
-			memcpy(cur_data_pos, data_buffer, n2 * sizeof(T));
-			cur_data_pos += stride;
-		}
-		if(!(n1 & 1)){
-			// n1 is even, change the last coeff row into nodal row
-			cur_data_pos -= stride;
-			for(int j=0; j<n2; j++){
-				cur_data_pos[j] = 2 * cur_data_pos[j] - cur_data_pos[-stride + j];
-			}
-		}
-		// do reorder (2)
-		// TODO: change to online processing for memory saving
-		switch_rows_2D_by_buffer(data_pos, data_buffer, n1_nodal + n1_coeff, n2_nodal + n2_coeff, stride);
-	}
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l
 	// overwrite the data in N_l \ N_(l-1) in place
@@ -142,10 +111,48 @@ private:
 		add_correction(n_nodal, nodal_buffer);
 		memcpy(data_pos, data_buffer, n*sizeof(T));
 	}
+	/*
+		2D decomposition
+	*/
+	// reorder the data to put all the coefficient to the back
+	/*
+		oxoxo		oooxx		oooxx
+		xxxxx	(1)	xxxxx	(2)	oooxx
+		oxoxo	=>	oooxx	=>	oooxx
+		xxxxx		xxxxx		xxxxx
+		oxoxo		oooxx		xxxxx
+	*/
+	void data_reorder_2D(T * data_pos, size_t n1, size_t n2, size_t stride){
+		size_t n1_nodal = (n1 >> 1) + 1;
+		size_t n1_coeff = n1 - n1_nodal;
+		size_t n2_nodal = (n2 >> 1) + 1;
+		size_t n2_coeff = n2 - n2_nodal;
+		T * cur_data_pos = data_pos;
+		T * nodal_pos = data_buffer;
+		T * coeff_pos = data_buffer + n2_nodal;
+		// do reorder (1)
+		for(int i=0; i<n1; i++){
+			data_reorder_1D(cur_data_pos, n2_nodal, n2_coeff, nodal_pos, coeff_pos);
+			memcpy(cur_data_pos, data_buffer, n2 * sizeof(T));
+			cur_data_pos += stride;
+		}
+		if(!(n1 & 1)){
+			// n1 is even, change the last coeff row into nodal row
+			cur_data_pos -= stride;
+			for(int j=0; j<n2; j++){
+				cur_data_pos[j] = 2 * cur_data_pos[j] - cur_data_pos[-stride + j];
+			}
+		}
+		// do reorder (2)
+		// TODO: change to online processing for memory saving
+		switch_rows_2D_by_buffer(data_pos, data_buffer, n1_nodal + n1_coeff, n2_nodal + n2_coeff, stride);
+	}
 	// compute and add the corrections
-	void compute_and_add_correction_2D(T * data_pos, size_t n1_nodal, size_t n1_coeff, size_t n2_nodal, size_t n2_coeff, T h, size_t stride){
-		size_t n1 = n1_nodal + n1_coeff;
-		size_t n2 = n2_nodal + n2_coeff;
+	void compute_and_add_correction_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+		size_t n1_nodal = (n1 >> 1) + 1;
+		size_t n1_coeff = n1 - n1_nodal;
+		size_t n2_nodal = (n2 >> 1) + 1;
+		size_t n2_coeff = n2 - n2_nodal;
 		// compute horizontal correction
 		T * nodal_pos = data_pos;
 		const T * coeff_pos = data_pos + n2_nodal;
@@ -194,9 +201,11 @@ private:
             }
 		}
 	}
-	void compute_interpolant_difference_2D(T * data_pos, size_t n1_nodal, size_t n1_coeff, size_t n2_nodal, size_t n2_coeff, size_t stride){
-		size_t n1 = n1_nodal + n1_coeff;
-		size_t n2 = n2_nodal + n2_coeff;
+	void compute_interpolant_difference_2D(T * data_pos, size_t n1, size_t n2, size_t stride){
+		size_t n1_nodal = (n1 >> 1) + 1;
+		size_t n1_coeff = n1 - n1_nodal;
+		size_t n2_nodal = (n2 >> 1) + 1;
+		size_t n2_coeff = n2 - n2_nodal;
 		// compute horizontal difference
 		const T * nodal_pos = data_pos;
 		T * coeff_pos = data_pos + n2_nodal;
@@ -210,17 +219,51 @@ private:
 	// decompose n1 x n2 data into coarse level (n1/2 x n2/2)
 	void decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
 		cerr << "decompose, h = " << h << endl; 
-		size_t n1_nodal = (n1 >> 1) + 1;
-		size_t n1_coeff = n1 - n1_nodal;
-		size_t n2_nodal = (n2 >> 1) + 1;
-		size_t n2_coeff = n2 - n2_nodal;
-		// if(h > 1) print(data, n1, n2, "data_entry");
-		data_reorder_2D(data_pos, n1_nodal, n1_coeff, n2_nodal, n2_coeff, stride);
-		compute_interpolant_difference_2D(data_pos, n1_nodal, n1_coeff, n2_nodal, n2_coeff, stride);
-		// if(h > 1) print(data, n1, n2, "data_before_correction");
-		compute_and_add_correction_2D(data_pos, n1_nodal, n1_coeff, n2_nodal, n2_coeff, h, stride);
-		// if(h > 1) print(data, n1, n2, "data_after_correction");
+		data_reorder_2D(data_pos, n1, n2, stride);
+		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
+		compute_and_add_correction_2D(data_pos, n1, n2, h, stride);
 	}
+	/*
+		oxoxo		oooxx		oooxx
+		xxxxx	(1)	xxxxx	(2)	oooxx
+		oxoxo	=>	oooxx	=>	oooxx
+		xxxxx		xxxxx		xxxxx
+		oxoxo		oooxx		xxxxx
+	*/
+	// void data_reorder_3D(T * data_pos, size_t n1, size_t n2, size_t n3, size_t dim0_stride, size_t dim1_stride){
+	// 	size_t n1_nodal = (n1 >> 1) + 1;
+	// 	size_t n1_coeff = n1 - n1_nodal;
+	// 	size_t n2_nodal = (n2 >> 1) + 1;
+	// 	size_t n2_coeff = n2 - n2_nodal;
+	// 	size_t n3_nodal = (n3 >> 1) + 1;
+	// 	size_t n3_coeff = n3 - n3_nodal;
+	// 	T * cur_data_pos = data_pos;
+	// 	T * nodal_pos = data_buffer;
+	// 	T * coeff_pos = data_buffer + n2_nodal;
+	// 	// do 2D reorder
+	// 	for(int i=0; i<n1; i++){
+	// 		data_reorder_1D(cur_data_pos, n2_nodal, n2_coeff, nodal_pos, coeff_pos);
+	// 		memcpy(cur_data_pos, data_buffer, n2 * sizeof(T));
+	// 		cur_data_pos += stride;
+	// 	}
+	// 	if(!(n1 & 1)){
+	// 		// n1 is even, change the last coeff row into nodal row
+	// 		cur_data_pos -= stride;
+	// 		for(int j=0; j<n2; j++){
+	// 			cur_data_pos[j] = 2 * cur_data_pos[j] - cur_data_pos[-stride + j];
+	// 		}
+	// 	}
+	// 	// do reorder (2)
+	// 	// TODO: change to online processing for memory saving
+	// 	switch_rows_2D_by_buffer(data_pos, data_buffer, n1_nodal + n1_coeff, n2_nodal + n2_coeff, stride);
+	// }
+
+	// // decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
+	// void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+	// 	data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+	// 	compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+	// 	compute_and_add_correction_3D(data_pos, n1, n2, n3, h, dim0_stride, dim1_stride);
+	// }
 };
 
 
