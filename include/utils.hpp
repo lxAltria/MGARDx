@@ -5,11 +5,26 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <quantizer/Quantizer.hpp>
+#include <encoder/HuffmanEncoder.hpp>
+#include "zstd.h"
 
 namespace MGARD{
 
 using namespace std;
 
+unsigned long sz_lossless_compress(unsigned char *data, size_t dataLength) {
+    unsigned long outSize = 0;
+    size_t estimatedCompressedSize = 0;
+    if (dataLength < 100)
+        estimatedCompressedSize = 200;
+    else
+        estimatedCompressedSize = dataLength * 1.2;
+    unsigned char * buffer = (unsigned char *) malloc(estimatedCompressedSize);
+    outSize = ZSTD_compress(buffer, estimatedCompressedSize, data, dataLength, 3); //default setting of level is 3
+    free(buffer);
+    return outSize;
+}
 template<typename Type>
 std::vector<Type> readfile(const char *file, size_t &num) {
     std::ifstream fin(file, std::ios::binary);
@@ -244,7 +259,7 @@ void apply_correction_batched(T * nodal_pos, const T * correction_buffer, int n_
 // compute correction the vertical (non-contiguous) dimension
 template <class T>
 void compute_and_apply_correction_2D_vertical(T * data_pos, size_t n1, size_t n2, T h, size_t stride, T * horizontal_correction,
-            T * load_v_buffer, T * correction_buffer, int default_batch_size=1, bool decompose=true){
+            T * load_v_buffer, T * correction_buffer, int default_batch_size=1, bool apply=true, bool decompose=true){
     size_t n1_nodal = (n1 >> 1) + 1;
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
@@ -263,19 +278,22 @@ void compute_and_apply_correction_2D_vertical(T * data_pos, size_t n1, size_t n2
     int num_batches = (n2_nodal - 1) / batchsize;
     T * nodal_pos = horizontal_correction;
     T * coeff_pos = horizontal_correction + n1_nodal * n2_nodal;
+    // compute and apply vertical correction
     T * data_nodal_pos = data_pos;
     for(int i=0; i<num_batches; i++){
         compute_load_vector_vertical(load_v_buffer, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
         compute_correction_batched(correction_buffer, h, b.data(), w.data(), n1_nodal, batchsize, load_v_buffer);
-        apply_correction_batched(data_nodal_pos, correction_buffer, n1_nodal, stride, batchsize, decompose);
+        apply_correction_batched(nodal_pos, correction_buffer, n1_nodal, n2_nodal, batchsize, true);
         nodal_pos += batchsize, coeff_pos += batchsize, data_nodal_pos += batchsize;
     }
     if(n2_nodal - batchsize * num_batches > 0){
         batchsize = n2_nodal - batchsize * num_batches;
         compute_load_vector_vertical(load_v_buffer, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
         compute_correction_batched(correction_buffer, h, b.data(), w.data(), n1_nodal, batchsize, load_v_buffer);
-        apply_correction_batched(data_nodal_pos, correction_buffer, n1_nodal, stride, batchsize, decompose);
+        apply_correction_batched(nodal_pos, correction_buffer, n1_nodal, n2_nodal, batchsize, true);
     }
+    // apply horizontal correction
+    if(apply) apply_correction_batched(data_pos, horizontal_correction, n1_nodal, stride, n2_nodal, decompose);
 }
 
 }

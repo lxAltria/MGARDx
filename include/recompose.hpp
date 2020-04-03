@@ -19,6 +19,19 @@ public:
 		if(correction_buffer) free(correction_buffer);	
 		if(load_v_buffer) free(load_v_buffer);
 	};
+    T * decompress(unsigned char * compressed, size_t compressed_size, const vector<size_t>& dims, size_t target_level){
+        size_t num_elements = 1;
+        for(const auto& d:dims){
+            num_elements *= d;
+        }
+        if(data){
+            free(data);
+        }
+        data = (T *) malloc(num_elements * sizeof(T));
+        decoding_and_recover(compressed, compressed_size, num_elements, target_level);
+        recompose(data, dims, target_level);
+        return data;
+    }
 	void recompose(T * data_, const vector<size_t>& dims, size_t target_level){
 		data = data_;
 		vector<vector<size_t>> level_dims;
@@ -57,6 +70,15 @@ public:
 				h >>= 1;
 			}
 		}
+        else if(dims.size() == 3){
+            for(int i=0; i<target_level; i++){
+                size_t n1 = level_dims[0][i+1];
+                size_t n2 = level_dims[1][i+1];
+                size_t n3 = level_dims[2][i+1];
+                recompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+                h >>= 1;
+            }
+        }
 	}
 private:
 	unsigned int default_batch_size = 32;
@@ -65,6 +87,20 @@ private:
 	T * data_buffer = NULL;		// buffer for reordered data
 	T * load_v_buffer = NULL;
 	T * correction_buffer = NULL;
+
+    void decoding_and_recover(const unsigned char * compressed, size_t compressed_size, size_t num_elements, int target_level){
+        const unsigned char * compressed_data_pos = compressed;
+        auto quantizer = SZ::LinearQuantizer<float>(1);
+        auto encoder = SZ::HuffmanEncoder<int>();
+        size_t remaining_length = compressed_size;
+        quantizer.load(compressed_data_pos, remaining_length);
+        encoder.load(compressed_data_pos, remaining_length);
+        auto quant_inds = encoder.decode(compressed_data_pos, num_elements);
+        encoder.postprocess_decode();
+        for(int i=0; i<num_elements; i++){
+            data[i] = quantizer.recover(0, quant_inds[i]);
+        }
+    }
 
 	void init(const vector<size_t>& dims){
 		size_t buffer_size = default_batch_size * (*max_element(dims.begin(), dims.end())) * sizeof(T);
@@ -139,7 +175,7 @@ private:
 		T * coeff_pos = data_buffer + n2_nodal;
 		// do reorder (1)
 		// TODO: change to online processing for memory saving
-		switch_rows_2D_by_buffer_reverse(data_pos, data_buffer, n1_nodal + n1_coeff, n2_nodal + n2_coeff, stride);
+		switch_rows_2D_by_buffer_reverse(data_pos, data_buffer, n1, n2, stride);
 		// do reorder (2)
 		for(int i=0; i<n1; i++){
 			memcpy(data_buffer, cur_data_pos, n2 * sizeof(T));
@@ -173,7 +209,7 @@ private:
 			correction_pos += n2_nodal;
 		}
 		// compute vertical correction
-		compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, false);
+		compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, true, false);
 	}
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l for the coefficient rows in 2D
@@ -229,6 +265,147 @@ private:
 		recover_from_interpolant_difference_2D(data_pos, n1, n2, stride);
 		data_reverse_reorder_2D(data_pos, n1, n2, stride);
 	}
+    /*
+        vertical reorder + 2D reorder
+    */
+    void data_reverse_reorder_3D(T * data_pos, size_t n1, size_t n2, size_t n3, size_t dim0_stride, size_t dim1_stride){
+        size_t n1_nodal = (n1 >> 1) + 1;
+        size_t n1_coeff = n1 - n1_nodal;
+        size_t n2_nodal = (n2 >> 1) + 1;
+        size_t n2_coeff = n2 - n2_nodal;
+        size_t n3_nodal = (n3 >> 1) + 1;
+        size_t n3_coeff = n3 - n3_nodal;
+        T * cur_data_pos = data_pos;
+        // reorder vertically
+        for(int j=0; j<n2; j++){
+            switch_rows_2D_by_buffer_reverse(cur_data_pos, data_buffer, n1, n3, dim0_stride);
+            cur_data_pos += dim1_stride;
+        }
+        // do 2D reorder
+        cur_data_pos = data_pos;
+        for(int i=0; i<n1; i++){
+            data_reverse_reorder_2D(cur_data_pos, n2, n3, dim1_stride);
+            cur_data_pos += dim0_stride;
+        }
+        if(!(n1 & 1)){
+            // n1 is even, change the last coeff plane into nodal plane
+            cur_data_pos -= dim0_stride;
+            for(int j=0; j<n2; j++){
+                for(int k=0; k<n3; k++){
+                    cur_data_pos[k] = (cur_data_pos[k] + cur_data_pos[- dim0_stride + k]) / 2;
+                }
+                cur_data_pos += dim1_stride;
+            }
+        }
+    }
+    /*
+        2D computation + vertical computation for coefficient plane 
+    */
+    void recover_from_interpolant_difference_3D(T * data_pos, size_t n1, size_t n2, size_t n3, size_t dim0_stride, size_t dim1_stride){
+        size_t n1_nodal = (n1 >> 1) + 1;
+        size_t n1_coeff = n1 - n1_nodal;
+        size_t n2_nodal = (n2 >> 1) + 1;
+        size_t n2_coeff = n2 - n2_nodal;
+        size_t n3_nodal = (n3 >> 1) + 1;
+        size_t n3_coeff = n3 - n3_nodal;
+        bool even_n2 = (!(n2 & 1));
+        bool even_n3 = (!(n3 & 1));
+        T * cur_data_pos = data_pos;
+        for(int i=0; i<n1_nodal; i++){
+            recover_from_interpolant_difference_2D(cur_data_pos, n2, n3, dim1_stride);
+            cur_data_pos += dim0_stride;
+        }
+        // compute vertically
+        const T * nodal_pos = data_pos;
+        T * coeff_pos = data_pos + n1_nodal * dim0_stride;
+        for(int i=0; i<n1_coeff; i++){
+            // iterate throught coefficient planes along n1
+            /*
+                data in the coefficient plane
+                xxxxx       xxx                     xx
+                xxxxx       xxx coeff_nodal_nonal   xx  coeff_nodal_coeff
+                xxxxx   =>  xxx                     xx
+                xxxxx
+                xxxxx       xxx coeff_coeff_nodal   xx  coeff_coeff_coeff
+                            xxx                     xx
+            */
+            const T * nodal_nodal_nodal_pos = nodal_pos;
+            T * coeff_nodal_nodal_pos = coeff_pos;
+            T * coeff_nodal_coeff_pos = coeff_pos + n3_nodal;
+            T * coeff_coeff_nodal_pos = coeff_pos + n2_nodal * dim1_stride;
+            T * coeff_coeff_coeff_pos = coeff_coeff_nodal_pos + n3_nodal;
+            // TODO: optimize average computation
+            for(int j=0; j<n2_coeff; j++){
+                for(int k=0; k<n3_coeff; k++){
+                    // coeff_nodal_nonal
+                    coeff_nodal_nodal_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k]) / 2;
+                    // coeff_nodal_coeff
+                    coeff_nodal_coeff_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k] +
+                                                    nodal_nodal_nodal_pos[k + 1] + nodal_nodal_nodal_pos[dim0_stride + k + 1]) / 4;
+                    // coeff_coeff_nodal
+                    coeff_coeff_nodal_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k] +
+                                                    nodal_nodal_nodal_pos[k + dim1_stride] + nodal_nodal_nodal_pos[dim0_stride + k + dim1_stride]) / 4;
+                    // coeff_coeff_coeff
+                    coeff_coeff_coeff_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k] +
+                                                    nodal_nodal_nodal_pos[k + 1] + nodal_nodal_nodal_pos[dim0_stride + k + 1] +
+                                                    nodal_nodal_nodal_pos[k + dim1_stride] + nodal_nodal_nodal_pos[dim0_stride + k + dim1_stride] + 
+                                                    nodal_nodal_nodal_pos[k + dim1_stride + 1] + nodal_nodal_nodal_pos[dim0_stride + k + dim1_stride + 1]) / 8;
+                }
+                // compute the last (or second last if n3 is even) coeff_*_nodal column
+                coeff_nodal_nodal_pos[n3_coeff] += (nodal_nodal_nodal_pos[n3_coeff] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff]) / 2;
+                coeff_coeff_nodal_pos[n3_coeff] += (nodal_nodal_nodal_pos[n3_coeff] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff] +
+                                                nodal_nodal_nodal_pos[n3_coeff + dim1_stride] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + dim1_stride]) / 4;
+                if(even_n3){
+                    // compute the last coeff_*_nodal column if n3 is even
+                    coeff_nodal_nodal_pos[n3_coeff + 1] += (nodal_nodal_nodal_pos[n3_coeff + 1] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + 1]) / 2;
+                    coeff_coeff_nodal_pos[n3_coeff + 1] += (nodal_nodal_nodal_pos[n3_coeff + 1] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + 1] +
+                                                    nodal_nodal_nodal_pos[n3_coeff + 1 + dim1_stride] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + 1 + dim1_stride]) / 4;
+                }
+                coeff_nodal_nodal_pos += dim1_stride;
+                coeff_nodal_coeff_pos += dim1_stride;
+                coeff_coeff_nodal_pos += dim1_stride;
+                coeff_coeff_coeff_pos += dim1_stride;
+                nodal_nodal_nodal_pos += dim1_stride;
+            }
+            // compute the last (or second last if n2 is even) coeff_nodal_coeff row
+            {
+                for(int k=0; k<n3_coeff; k++){
+                    coeff_nodal_nodal_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k]) / 2;
+                    coeff_nodal_coeff_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k] +
+                                                    nodal_nodal_nodal_pos[k + 1] + nodal_nodal_nodal_pos[dim0_stride + k + 1]) / 4;
+                }
+                coeff_nodal_nodal_pos[n3_coeff] += (nodal_nodal_nodal_pos[n3_coeff] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff]) / 2;
+                if(even_n3){
+                    coeff_nodal_nodal_pos[n3_coeff + 1] += (nodal_nodal_nodal_pos[n3_coeff + 1] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + 1]) / 2;
+                }
+                coeff_nodal_nodal_pos += dim1_stride;
+                coeff_nodal_coeff_pos += dim1_stride;
+                coeff_coeff_nodal_pos += dim1_stride;
+                coeff_coeff_coeff_pos += dim1_stride;
+                nodal_nodal_nodal_pos += dim1_stride;
+            }
+            if(even_n2){
+                // compute the last coeff_nodal_* row if n2 is even
+                for(int k=0; k<n3_coeff; k++){
+                    coeff_nodal_nodal_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k]) / 2;
+                    coeff_nodal_coeff_pos[k] += (nodal_nodal_nodal_pos[k] + nodal_nodal_nodal_pos[dim0_stride + k] +
+                                                    nodal_nodal_nodal_pos[k + 1] + nodal_nodal_nodal_pos[dim0_stride + k + 1]) / 4;
+                }
+                coeff_nodal_nodal_pos[n3_coeff] += (nodal_nodal_nodal_pos[n3_coeff] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff]) / 2;
+                if(even_n3){
+                    coeff_nodal_nodal_pos[n3_coeff + 1] += (nodal_nodal_nodal_pos[n3_coeff + 1] + nodal_nodal_nodal_pos[dim0_stride + n3_coeff + 1]) / 2;
+                }
+            }
+            nodal_pos += dim0_stride;
+            coeff_pos += dim0_stride;
+        }
+    }    
+    // recompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
+    void recompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+        // compute_and_subtract_correction_3D(data_pos, n1, n2, n3, h, dim0_stride, dim1_stride);
+        recover_from_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+        data_reverse_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+    }
 };
 
 }
