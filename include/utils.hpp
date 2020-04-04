@@ -124,9 +124,9 @@ void switch_rows_2D_by_buffer_reverse(T * data_pos, T * data_buffer, size_t n1, 
 // @param h: stride of nodals in N_(l+1)
 // output in load_v_buffer
 template <class T>
-void compute_load_vector(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * coeff_buffer){
+void  compute_load_vector(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
-    T ah = h * 0.25; // derived constant in the formula
+    T ah = h * 0.5; // derived constant in the formula
     // first nodal value
     load_v_buffer[0] = coeff[0] * ah;
     // iterate through nodal values
@@ -148,10 +148,10 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
     // forward pass
     // simplified algorithm
     T * d = load_v_buffer;
-    vector<T> b(n, h*2/3);
-    b[0] = h/3;
-    b[n-1] = h/3;
-    T c = h/6;
+    vector<T> b(n, h*4/3);
+    b[0] = h*2/3;
+    b[n-1] = h*2/3;
+    T c = h/3;
     for(int i=1; i<n; i++){
         auto w = c / b[i-1];
         b[i] = b[i] - w * c;
