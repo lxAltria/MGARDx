@@ -148,14 +148,15 @@ private:
 	}
 	// decompose a level with n element and the given stride
 	// to a level with n/2 element
-	void decompose_level_1D(T * data_pos, size_t n, T h){
+	void decompose_level_1D(T * data_pos, size_t n, T h, bool nodal_row=true){
 		size_t n_nodal = (n >> 1) + 1;
 		size_t n_coeff = n - n_nodal;
 		T * nodal_buffer = data_buffer;
 		T * coeff_buffer = data_buffer + n_nodal;
 		data_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
 		compute_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
-		compute_load_vector(load_v_buffer, n_nodal, n_coeff, h, coeff_buffer);
+		if(nodal_row) compute_load_vector_nodal_row(load_v_buffer, n_nodal, n_coeff, h, coeff_buffer);
+        else compute_load_vector_coeff_row(load_v_buffer, n_nodal, n_coeff, h, nodal_buffer, coeff_buffer);
 		compute_correction(correction_buffer, n_nodal, h, load_v_buffer);
 		add_correction(n_nodal, nodal_buffer);
 		memcpy(data_pos, data_buffer, n*sizeof(T));
@@ -255,7 +256,8 @@ private:
 		// store horizontal corrections in the data_buffer
 		T * correction_pos = data_buffer;
 		for(int i=0; i<n1; i++){
-			compute_load_vector(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
+			if(i < n1_nodal) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
+            else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
 			compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
 			// print(correction_pos, 1, n2_nodal, "horizontal_correction");
 			// add_correction(n2_nodal, nodal_pos);
@@ -415,21 +417,6 @@ private:
 		size_t n2_coeff = n2 - n2_nodal;
 		size_t n3_nodal = (n3 >> 1) + 1;
 		size_t n3_coeff = n3 - n3_nodal;
-		// compute horizontal correction
-		// T * nodal_pos = data_pos;
-		// const T * coeff_pos = data_pos + n2_nodal;
-		// // store horizontal corrections in the data_buffer
-		// T * correction_pos = data_buffer;
-		// for(int i=0; i<n1; i++){
-		// 	compute_load_vector(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
-		// 	compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
-		// 	// print(correction_pos, 1, n2_nodal, "horizontal_correction");
-		// 	// add_correction(n2_nodal, nodal_pos);
-		// 	nodal_pos += stride, coeff_pos += stride;
-		// 	correction_pos += n2_nodal;
-		// }
-		// // compute vertical correction
-		// compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, true);
 	}
 	// decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
 	void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){

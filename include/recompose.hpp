@@ -141,14 +141,15 @@ private:
 	}
 	// recompose a level with n element and the given stride
 	// from a level with n/2 element
-	void recompose_level_1D(T * data_pos, size_t n, T h){
+	void recompose_level_1D(T * data_pos, size_t n, T h, bool nodal_row=true){
 		cerr << n << endl;
 		size_t n_nodal = (n >> 1) + 1;
 		size_t n_coeff = n - n_nodal;
 		memcpy(data_buffer, data_pos, n*sizeof(T));
 		T * nodal_buffer = data_buffer;
 		T * coeff_buffer = data_buffer + n_nodal;
-		compute_load_vector(load_v_buffer, n_nodal, n_coeff, h, coeff_buffer);
+		if(nodal_row) compute_load_vector_nodal_row(load_v_buffer, n_nodal, n_coeff, h, coeff_buffer);
+        else compute_load_vector_coeff_row(load_v_buffer, n_nodal, n_coeff, h, nodal_buffer, coeff_buffer);
 		compute_correction(correction_buffer, n_nodal, h, load_v_buffer);
 		subtract_correction(n_nodal, nodal_buffer);
 		recover_from_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
@@ -202,8 +203,9 @@ private:
 		// store horizontal corrections in the data_buffer
 		T * correction_pos = data_buffer;
 		for(int i=0; i<n1; i++){
-			compute_load_vector(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
-			compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
+			if(i < n1_nodal) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
+            else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
+            compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
 			// subtract_correction(n2_nodal, nodal_pos);
 			nodal_pos += stride, coeff_pos += stride;
 			correction_pos += n2_nodal;
