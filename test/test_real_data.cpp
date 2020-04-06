@@ -14,12 +14,17 @@ int main(int argc, char ** argv){
 	size_t num_elements = 0;
 	auto data = MGARD::readfile<float>(argv[1], num_elements);
 	auto data_ori(data);
-	const int target_level = atoi(argv[2]);
+    double tolerance = atof(argv[2]);
+	const int target_level = atoi(argv[3]);
 	// vector<size_t> dims(1, num_elements);
-	vector<size_t> dims(2);
-	dims[0] = atoi(argv[3]);
-	dims[1] = atoi(argv[4]);
-
+    const int num_dims = atoi(argv[4]);
+    cout << "data size: " << num_elements << ", dims: ";
+	vector<size_t> dims(num_dims);
+    for(int i=0; i<dims.size(); i++){
+	   dims[i] = atoi(argv[5 + i]);
+       cout << dims[i] << " ";
+	}
+    cout << endl;
 	double max_val = data[0];
 	double min_val = data[0];
 	double max_abs = fabs(data[0]);
@@ -28,16 +33,14 @@ int main(int argc, char ** argv){
 		if(data_ori[i] < min_val) min_val = data_ori[i];
 		if(fabs(data_ori[i]) > max_abs) max_abs = fabs(data_ori[i]);
 	}
-	double eb = atof(argv[5]) * max_abs;
-	cout << "Required eb = " << eb << endl;
+	double eb = tolerance;
+	cout << "Required eb = " << tolerance << endl;
 
 	MGARD::Decomposer<float> decomposer;
 	size_t compressed_size = 0;
     auto compressed_data = decomposer.compress(data.data(), dims, target_level, eb, compressed_size);
     cerr << "compressed_size = " << compressed_size << endl;
     MGARD::writefile((string(argv[1]) + ".mgard").c_str(), data.data(), num_elements);
-    free(compressed_data);
-
 	// decomposer.decompose(data.data(), dims, target_level);
 	// direct coefficient removal
 	// for(int i=0; i<dims[0]; i++){
@@ -45,9 +48,9 @@ int main(int argc, char ** argv){
 	// 		if((i >= 226) || (j >= 451)) data[i * dims[1] + j] = 0;
 	// 	}
 	// }
-
 	MGARD::Recomposer<float> recomposer;
 	auto data_dec = recomposer.decompress(compressed_data, compressed_size, dims, target_level);
+    free(compressed_data);
     // recomposer.recompose(data.data(), dims, target_level);
     // auto data_dec = data.data();
 	MGARD::writefile((string(argv[1]) + ".mgard.out").c_str(), data.data(), num_elements);
@@ -68,11 +71,6 @@ int main(int argc, char ** argv){
 	cerr << "Max value = " << max_val << ", min value = " << min_val << endl;
 	cerr << "Max error = " << max_err << ", pos = " << pos << endl;
 	cerr << "MSE = " << mse << ", PSNR = " << psnr << endl;
-	// MGARD::Recomposer<float> recomposer;
-	// recomposer.recompose(data.data(), dims, target_level);
-	// cerr << "Recomposed data: " << endl;
-	// for(int i=0; i<20; i++){
-	// 	cerr << data[i] << " ";
-	// }
-	// cerr << endl;
+    if(data_dec) free(data_dec);
+
 }

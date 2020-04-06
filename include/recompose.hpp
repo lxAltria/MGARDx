@@ -387,7 +387,17 @@ private:
     }    
     // recompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
     void recompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
-        // compute_and_subtract_correction_3D(data_pos, n1, n2, n3, h, dim0_stride, dim1_stride);
+        size_t n1_nodal = (n1 >> 1) + 1;
+        size_t n2_nodal = (n2 >> 1) + 1;
+        size_t n3_nodal = (n3 >> 1) + 1;
+        compute_correction_3D(data_pos, data_buffer, load_v_buffer, n1, n2, n3, n1_nodal, h, dim0_stride, dim1_stride, default_batch_size);
+        T * nodal_pos = data_pos;
+        const T * correction_pos = data_buffer;
+        for(int i=0; i<n1_nodal; i++){
+            apply_correction_batched(nodal_pos, correction_pos, n2_nodal, dim1_stride, n3_nodal, false);
+            nodal_pos += dim0_stride;
+            correction_pos += n2_nodal * n3_nodal;
+        }
         recover_from_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
         data_reverse_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
     }
