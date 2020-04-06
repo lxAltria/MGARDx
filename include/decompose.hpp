@@ -84,7 +84,7 @@ private:
 	unsigned char * quantize_and_encoding(size_t num_elements, int n_dims, double eb, int target_level, size_t& compressed_size){
 		double C2 = 1 + pow(sqrt(3)/2, n_dims);
 		double t = eb / (C2 * (target_level + 1));
-		auto quantizer = SZ::LinearQuantizer<float>(t);
+		auto quantizer = SZ::LinearQuantizer<T>(t);
 		vector<int> quant_inds(num_elements);
 		size_t count = 0;
 		for(int i=0; i<num_elements; i++){
@@ -102,7 +102,7 @@ private:
 		size_t compressed_length = compressed_data_pos - compressed;
 		cerr << "Compressed size after Huffman: " << compressed_length << ", ratio = " << num_elements * sizeof(T) * 1.0 / compressed_length << endl;
 		auto lossless_length = sz_lossless_compress(compressed, compressed_length);
-		cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(float) * 1.0 / lossless_length << endl;
+		cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(T) * 1.0 / lossless_length << endl;
 		compressed_size = compressed_length;
 		return compressed;
 	}
@@ -245,7 +245,7 @@ private:
 		compute_interpolant_difference_2D_vertical(data_pos, n1, n2, stride);
 	}	
 	// compute and add the corrections
-	void compute_and_add_correction_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+	void compute_and_add_correction_2D(T * data_pos, size_t n1, size_t n2, size_t nodal_rows, T h, size_t stride, bool apply=true){
 		size_t n1_nodal = (n1 >> 1) + 1;
 		size_t n1_coeff = n1 - n1_nodal;
 		size_t n2_nodal = (n2 >> 1) + 1;
@@ -256,23 +256,25 @@ private:
 		// store horizontal corrections in the data_buffer
 		T * correction_pos = data_buffer;
 		for(int i=0; i<n1; i++){
-			if(i < n1_nodal) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
-            else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
+			if(i < nodal_rows) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
+            else compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
 			compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
 			// print(correction_pos, 1, n2_nodal, "horizontal_correction");
 			// add_correction(n2_nodal, nodal_pos);
 			nodal_pos += stride, coeff_pos += stride;
 			correction_pos += n2_nodal;
-		}
+		}        
 		// compute vertical correction
-		compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, true, true);
+		compute_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, default_batch_size);
+        apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
 	}
 	// decompose n1 x n2 data into coarse level (n1/2 x n2/2)
 	void decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
-		cerr << "decompose, h = " << h << endl; 
+		// cerr << "decompose, h = " << h << endl; 
 		data_reorder_2D(data_pos, n1, n2, stride);
 		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
-		compute_and_add_correction_2D(data_pos, n1, n2, h, stride);
+        size_t n1_nodal = (n1 >> 1) + 1;
+		compute_and_add_correction_2D(data_pos, n1, n2, n1_nodal, h, stride);
 	}
 	/*
 		2D reorder + vertical reorder
@@ -417,6 +419,19 @@ private:
 		size_t n2_coeff = n2 - n2_nodal;
 		size_t n3_nodal = (n3 >> 1) + 1;
 		size_t n3_coeff = n3 - n3_nodal;
+
+        // // compute horizontal correction
+        // T * nodal_pos = data_pos;
+        // const T * coeff_pos = data_pos + n2_nodal;
+        // // store horizontal corrections in the data_buffer
+        // T * correction_pos = data_buffer;
+        // for(int i=0; i<n1; i++){
+        //     compute_and_add_correction_2D(data_pos, n1, n2, n1_nodal, h, stride, false);
+        //     nodal_pos += stride, coeff_pos += stride;
+        //     correction_pos += n2_nodal;
+        // }
+        // // compute vertical correction
+        // compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, true, true);
 	}
 	// decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
 	void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){

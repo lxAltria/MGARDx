@@ -119,9 +119,9 @@ void switch_rows_2D_by_buffer_reverse(T * data_pos, T * data_buffer, size_t n1, 
         cur_data_pos += stride;
     }
 }
-const double alpha = 0.5;
-const double beta0 = 1.0/12;
-const double beta1 = 5.0/6;
+const double alpha = 1.0/12;
+const double beta = 0.5;
+const double gamma = 5.0/6;
 // compute entries for load vector
 // for uniform decomposition only
 // @param h: stride of nodals in N_(l+1)
@@ -134,7 +134,7 @@ void  compute_load_vector_nodal_row(T * load_v_buffer, size_t n_nodal, size_t n_
     T const * coeff = coeff_buffer;
     // T ah = h * 0.5; // derived constant in the formula
     // eliminate h for efficiency
-    T ah = alpha; 
+    T ah = beta; 
     // first nodal value
     load_v_buffer[0] = coeff[0] * ah;
     // iterate through nodal values
@@ -157,17 +157,17 @@ void  compute_load_vector_coeff_row(T * load_v_buffer, size_t n_nodal, size_t n_
     T const * nodal = nodal_buffer;
     // T ah = h * 0.5; // derived constant in the formula
     // eliminate h for efficiency
-    T ah = alpha;
-    T bh = beta0;
-    T ch = beta1;
+    T ah = alpha;   // 1/12
+    T bh = beta;    // 1/2
+    T ch = gamma;   // 5/6
     // first nodal value
-    load_v_buffer[0] = coeff[0] * ah + nodal[0] * ch;
+    load_v_buffer[0] = nodal[0] * ch / 2 + coeff[0] * bh + nodal[1] * ah;
     // iterate through nodal values
     for(int i=1; i<n_coeff; i++){
-        load_v_buffer[i] = (coeff[i-1] + coeff[i]) * ah + (nodal[i-1] + nodal[i+1]) * bh + nodal[i] * ch;
+        load_v_buffer[i] = (nodal[i - 1] + nodal[i + 1]) * ah + (coeff[i - 1] + coeff[i]) * bh + nodal[i] * ch;
     }
     // last nodal value
-    load_v_buffer[n_coeff] = coeff[n_coeff-1] * ah + nodal[n_coeff] * ch;
+    load_v_buffer[n_coeff] = nodal[n_coeff - 1] * ah + coeff[n_coeff - 1] * bh + nodal[n_coeff] * ch / 2;
     // if next n is even, load_v_buffer[n_nodal - 1] = 0
     if(n_nodal == n_coeff + 2) load_v_buffer[n_coeff + 1] = 0;
 }
@@ -209,26 +209,35 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
 // @param batchsize: number of columns to be computed together
 // output in load_v_buffer
 template <class T>
-void compute_load_vector_vertical(T * load_v_buffer, const T * coeff_buffer, size_t n1_nodal, size_t n1_coeff, size_t stride, T h, int batchsize){
-    T ah = h * 0.25; // derived constant in the formula
+void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, const T * coeff_buffer, size_t n1_nodal, size_t n1_coeff, size_t stride, T h, int batchsize){
+    // T ah = h * 0.25; // derived constant in the formula
+    T ah = alpha * h;   // 1/12
+    T bh = beta * h;    // 1/2
+    T ch = gamma * h;   // 5/6
+    T const * nodal_pos = nodal_buffer;
     T const * coeff_pos = coeff_buffer;
     T * load_v_pos = load_v_buffer;
     // first nodal value
     for(int j=0; j<batchsize; j++){
-        load_v_pos[j] = coeff_pos[j] * ah;
+        // load_v_pos[j] = coeff_pos[j] * ah;
+        load_v_pos[j] = nodal_pos[j] * ch / 2 + coeff_pos[j] * bh + nodal_pos[stride + j] * ah;
     }
     load_v_pos += batchsize;
+    nodal_pos += stride;
     coeff_pos += stride;
     for(int i=1; i<n1_coeff; i++){
         for(int j=0; j<batchsize; j++){
-            load_v_pos[j] = (coeff_pos[-stride + j] + coeff_pos[j]) * ah;
+            // load_v_pos[j] = (coeff_pos[-stride + j] + coeff_pos[j]) * ah;
+            load_v_pos[j] = (nodal_pos[j - stride] + nodal_pos[j + stride]) * ah + (coeff_pos[j - stride] + coeff_pos[j]) * bh + nodal_pos[j] * ch;
         }
         load_v_pos += batchsize;
+        nodal_pos += stride;
         coeff_pos += stride;
     }
     // last nodal value
     for(int j=0; j<batchsize; j++){
-        load_v_pos[j] = coeff_pos[-stride + j] * ah;
+        // load_v_pos[j] = coeff_pos[-stride + j] * ah;
+        load_v_pos[j] = nodal_pos[j - stride] * ah + coeff_pos[j - stride] * bh + nodal_pos[j] * ch / 2;
     }
     // if next n is even, load_v_buffer[n_nodal - 1] = 0
     if(n1_nodal == n1_coeff + 2){
@@ -242,9 +251,9 @@ void compute_load_vector_vertical(T * load_v_buffer, const T * coeff_buffer, siz
 // using Thomas algorithm for tridiagonal inverse
 // @param h: interval length
 template <class T>
-void compute_correction_batched(T * correction_buffer, T h, const T * b, const T * w, size_t n_nodal, int batchsize, T * load_v_buffer){
+void compute_correction_batched(T * correction_buffer, T h, const T * b, const T * w, size_t n_nodal, int batchsize, size_t correction_stride, T * load_v_buffer){
     size_t n = n_nodal;
-    T c = h/6;
+    T c = h/3;
     // Thomas algorithm for solving M_l x = load_v
     // forward pass
     // simplified algorithm
@@ -252,23 +261,23 @@ void compute_correction_batched(T * correction_buffer, T h, const T * b, const T
     T * load_v_pos = load_v_buffer + batchsize;
     for(int i=1; i<n; i++){
         for(int j=0; j<batchsize; j++){
-            load_v_pos[j] -= - w[i] * load_v_pos[-batchsize + j];
+            load_v_pos[j] -= w[i] * load_v_pos[-batchsize + j];
         }
         load_v_pos += batchsize;
     }
     // backward pass
-    T * correction_pos = correction_buffer + (n - 1) * batchsize;
+    T * correction_pos = correction_buffer + (n - 1) * correction_stride;
     load_v_pos -= batchsize;
     for(int j=0; j<batchsize; j++){
         correction_pos[j] = load_v_pos[j] / b[n - 1];
     }
-    correction_pos -= batchsize;
+    correction_pos -= correction_stride;
     load_v_pos -= batchsize;
     for(int i=n-2; i>=0; i--){
         for(int j=0; j<batchsize; j++){
-            correction_pos[j] = (load_v_pos[j] - c * correction_pos[batchsize + j]) / b[i];
+            correction_pos[j] = (load_v_pos[j] - c * correction_pos[correction_stride + j]) / b[i];
         }
-        correction_pos -= batchsize;
+        correction_pos -= correction_stride;
         load_v_pos -= batchsize;
     }
 }
@@ -296,18 +305,19 @@ void apply_correction_batched(T * nodal_pos, const T * correction_buffer, int n_
 }
 // compute correction the vertical (non-contiguous) dimension
 template <class T>
-void compute_and_apply_correction_2D_vertical(T * data_pos, size_t n1, size_t n2, T h, size_t stride, T * horizontal_correction,
-            T * load_v_buffer, T * correction_buffer, int default_batch_size=1, bool apply=true, bool decompose=true){
+void compute_correction_2D_vertical(T * data_pos, size_t n1, size_t n2, T h, size_t stride, T * horizontal_correction,
+            T * load_v_buffer, int default_batch_size=1){
     size_t n1_nodal = (n1 >> 1) + 1;
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
     size_t n2_coeff = n2 - n2_nodal;
-    cerr << "n1 = " << n1 << ", n2 = " << n2 << endl;
-    cerr << "h = " << h << endl; 
-    vector<T> b(n1_nodal, h*2/3);
+    // cerr << "n1 = " << n1 << ", n2 = " << n2 << endl;
+    // cerr << "h = " << h << endl; 
+    vector<T> b(n1_nodal, h*4/3);
     vector<T> w(n1_nodal, 0);
-    b[0] = h/3, b[n1_nodal - 1] = h/3;
-    T c = h/6;
+    b[0] = h*2/3, b[n1_nodal - 1] = h*2/3;
+    T c = h/3;
+
     for(int i=1; i<n1_nodal; i++){
         w[i] = c / b[i-1];
         b[i] = b[i] - w[i] * c;
@@ -319,19 +329,15 @@ void compute_and_apply_correction_2D_vertical(T * data_pos, size_t n1, size_t n2
     // compute and apply vertical correction
     T * data_nodal_pos = data_pos;
     for(int i=0; i<num_batches; i++){
-        compute_load_vector_vertical(load_v_buffer, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
-        compute_correction_batched(correction_buffer, h, b.data(), w.data(), n1_nodal, batchsize, load_v_buffer);
-        apply_correction_batched(nodal_pos, correction_buffer, n1_nodal, n2_nodal, batchsize, true);
+        compute_load_vector_vertical(load_v_buffer, nodal_pos, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
+        compute_correction_batched(nodal_pos, h, b.data(), w.data(), n1_nodal, batchsize, n2_nodal, load_v_buffer);
         nodal_pos += batchsize, coeff_pos += batchsize, data_nodal_pos += batchsize;
     }
     if(n2_nodal - batchsize * num_batches > 0){
         batchsize = n2_nodal - batchsize * num_batches;
-        compute_load_vector_vertical(load_v_buffer, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
-        compute_correction_batched(correction_buffer, h, b.data(), w.data(), n1_nodal, batchsize, load_v_buffer);
-        apply_correction_batched(nodal_pos, correction_buffer, n1_nodal, n2_nodal, batchsize, true);
+        compute_load_vector_vertical(load_v_buffer, nodal_pos, coeff_pos, n1_nodal, n1_coeff, n2_nodal, h, batchsize);
+        compute_correction_batched(nodal_pos, h, b.data(), w.data(), n1_nodal, batchsize, n2_nodal, load_v_buffer);
     }
-    // apply horizontal correction
-    if(apply) apply_correction_batched(data_pos, horizontal_correction, n1_nodal, stride, n2_nodal, decompose);
 }
 
 }

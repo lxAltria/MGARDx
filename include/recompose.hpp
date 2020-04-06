@@ -90,7 +90,7 @@ private:
 
     void decoding_and_recover(const unsigned char * compressed, size_t compressed_size, size_t num_elements, int target_level){
         const unsigned char * compressed_data_pos = compressed;
-        auto quantizer = SZ::LinearQuantizer<float>(1);
+        auto quantizer = SZ::LinearQuantizer<T>(1);
         auto encoder = SZ::HuffmanEncoder<int>();
         size_t remaining_length = compressed_size;
         quantizer.load(compressed_data_pos, remaining_length);
@@ -192,7 +192,7 @@ private:
 		}
 	}
 	// compute and subtract the corrections
-	void compute_and_subtract_correction_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+	void compute_and_subtract_correction_2D(T * data_pos, size_t n1, size_t n2, size_t nodal_rows, T h, size_t stride, bool apply=true){
 		size_t n1_nodal = (n1 >> 1) + 1;
 		size_t n1_coeff = n1 - n1_nodal;
 		size_t n2_nodal = (n2 >> 1) + 1;
@@ -203,7 +203,7 @@ private:
 		// store horizontal corrections in the data_buffer
 		T * correction_pos = data_buffer;
 		for(int i=0; i<n1; i++){
-			if(i < n1_nodal) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
+			if(i < nodal_rows) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
             else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
             compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
 			// subtract_correction(n2_nodal, nodal_pos);
@@ -211,7 +211,8 @@ private:
 			correction_pos += n2_nodal;
 		}
 		// compute vertical correction
-		compute_and_apply_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, correction_buffer, default_batch_size, true, false);
+		compute_correction_2D_vertical(data_pos, n1, n2, h, stride, data_buffer, load_v_buffer, default_batch_size);
+        apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, false);
 	}
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l for the coefficient rows in 2D
@@ -262,8 +263,9 @@ private:
 	}	
 	// recompose n1/2 x n2/2 data into fine level (n1 x n2)
 	void recompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
-		cerr << "recompose, h = " << h << endl; 
-		compute_and_subtract_correction_2D(data_pos, n1, n2, h, stride);
+		// cerr << "recompose, h = " << h << endl; 
+        size_t n1_nodal = (n1 >> 1) + 1;
+		compute_and_subtract_correction_2D(data_pos, n1, n2, n1_nodal, h, stride);
 		recover_from_interpolant_difference_2D(data_pos, n1, n2, stride);
 		data_reverse_reorder_2D(data_pos, n1, n2, stride);
 	}
