@@ -12,7 +12,7 @@ using namespace std;
 
 int main(int argc, char ** argv){
 	size_t num_elements = 0;
-	auto data = MGARD::readfile<double>(argv[1], num_elements);
+	auto data = MGARD::readfile<float>(argv[1], num_elements);
 	auto data_ori(data);
 	const int target_level = atoi(argv[2]);
 	// vector<size_t> dims(1, num_elements);
@@ -31,7 +31,7 @@ int main(int argc, char ** argv){
 	double eb = atof(argv[5]) * max_abs;
 	cout << "Required eb = " << eb << endl;
 
-	MGARD::Decomposer<double> decomposer;
+	MGARD::Decomposer<float> decomposer;
 	size_t compressed_size = 0;
     auto compressed_data = decomposer.compress(data.data(), dims, target_level, eb, compressed_size);
     cerr << "compressed_size = " << compressed_size << endl;
@@ -46,7 +46,7 @@ int main(int argc, char ** argv){
 	// 	}
 	// }
 
-	MGARD::Recomposer<double> recomposer;
+	MGARD::Recomposer<float> recomposer;
 	auto data_dec = recomposer.decompress(compressed_data, compressed_size, dims, target_level);
     // recomposer.recompose(data.data(), dims, target_level);
     // auto data_dec = data.data();
@@ -68,7 +68,7 @@ int main(int argc, char ** argv){
 	cerr << "Max value = " << max_val << ", min value = " << min_val << endl;
 	cerr << "Max error = " << max_err << ", pos = " << pos << endl;
 	cerr << "MSE = " << mse << ", PSNR = " << psnr << endl;
-	// MGARD::Recomposer<double> recomposer;
+	// MGARD::Recomposer<float> recomposer;
 	// recomposer.recompose(data.data(), dims, target_level);
 	// cerr << "Recomposed data: " << endl;
 	// for(int i=0; i<20; i++){
