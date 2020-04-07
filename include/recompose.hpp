@@ -105,6 +105,7 @@ private:
         for(int i=0; i<num_elements; i++){
             data[i] = quantizer.recover(0, quant_inds[i]);
         }
+        free(compressed);
     }
 
 	void init(const vector<size_t>& dims){

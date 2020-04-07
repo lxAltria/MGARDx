@@ -40,7 +40,7 @@ int main(int argc, char ** argv){
 	size_t compressed_size = 0;
     auto compressed_data = decomposer.compress(data.data(), dims, target_level, eb, compressed_size);
     cerr << "compressed_size = " << compressed_size << endl;
-    MGARD::writefile((string(argv[1]) + ".mgard").c_str(), data.data(), num_elements);
+    MGARD::writefile((string(argv[1]) + ".mgard").c_str(), compressed_data, compressed_size);
 	// decomposer.decompose(data.data(), dims, target_level);
 	// direct coefficient removal
 	// for(int i=0; i<dims[0]; i++){
@@ -49,11 +49,11 @@ int main(int argc, char ** argv){
 	// 	}
 	// }
 	MGARD::Recomposer<float> recomposer;
-	auto data_dec = recomposer.decompress(compressed_data, compressed_size, dims, target_level);
+	auto data_dec = recomposer.decompress(compressed_data, compressed_size, dims);
     free(compressed_data);
     // recomposer.recompose(data.data(), dims, target_level);
     // auto data_dec = data.data();
-	MGARD::writefile((string(argv[1]) + ".mgard.out").c_str(), data.data(), num_elements);
+	MGARD::writefile((string(argv[1]) + ".mgard.out").c_str(), data_dec, num_elements);
 
 	double max_err = 0;
 	int pos = 0;

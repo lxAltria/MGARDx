@@ -32,7 +32,7 @@ unsigned long sz_lossless_compress(int losslessCompressor, int level, unsigned c
     default:
         printf("Error: Unrecognized lossless compressor in sz_lossless_compress()\n");
     }
-    return outSize;
+    return outSize + sizeof(size_t);
 }
 unsigned long sz_lossless_decompress(int losslessCompressor, const unsigned char* compressBytes, unsigned long cmpSize, unsigned char** oriData)
 {
@@ -42,7 +42,7 @@ unsigned long sz_lossless_decompress(int losslessCompressor, const unsigned char
     case ZSTD_COMPRESSOR:
         outSize = *reinterpret_cast<const size_t*>(compressBytes);
         *oriData = (unsigned char*)malloc(outSize);
-        ZSTD_decompress(*oriData, outSize, compressBytes + sizeof(size_t), cmpSize);
+        ZSTD_decompress(*oriData, outSize, compressBytes + sizeof(size_t), cmpSize - sizeof(size_t));
         break;
     default:
         printf("Error: Unrecognized lossless compressor in sz_lossless_decompress()\n");

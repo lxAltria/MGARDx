@@ -413,6 +413,25 @@ private:
             nodal_pos += dim0_stride;
             correction_pos += n2_nodal * n3_nodal;
         }
+        {
+            double nodal_mse = 0;
+            double coeff_mse = 0;
+            size_t count = 0;
+            for(int i=0; i<n1; i++){
+                for(int j=0; j<n2; j++){
+                    for(int k=0; k<n3; k++){
+                        if((i < n1_nodal) && (j < n2_nodal) && (k < n3_nodal)){
+                            nodal_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
+                            continue;
+                        }
+                        count ++;
+                        coeff_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
+                    }
+                }
+            }
+            cerr << count << " = " << n1 * n2 * n3 - n1_nodal * n2_nodal * n3_nodal;
+            cerr << ", level abse = " << coeff_mse / count << ", rest nodal abse = " << nodal_mse / (n1_nodal * n2_nodal * n3_nodal) << endl;
+        }
 	}
 };
 
