@@ -60,6 +60,7 @@ int main(int argc, char ** argv){
        dims[i] = atoi(argv[5 + i]);
        cout << dims[i] << " ";
     }
+    cout << endl;
     size_t num_elements = 0;
     size_t compressed_size = 0;
     auto compressed = MGARD::readfile<unsigned char>(compressed_filename.c_str(), compressed_size);

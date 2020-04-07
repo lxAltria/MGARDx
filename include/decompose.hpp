@@ -21,7 +21,7 @@ public:
 		if(load_v_buffer) free(load_v_buffer);
 	};
 	unsigned char * compress(T * data_, const vector<size_t>& dims, size_t target_level, double eb, size_t& compressed_size){
-		decompose(data_, dims, target_level);
+		target_level = decompose(data_, dims, target_level);
 		size_t num_elements = 1;
 		for(const auto& d:dims){
 			num_elements *= d;
@@ -29,14 +29,16 @@ public:
 		auto result = quantize_and_encoding(num_elements, dims.size(), eb, target_level, compressed_size);
 		return result;
 	}
-
-	void decompose(T * data_, const vector<size_t>& dims, size_t target_level){
+    // return levels
+	int decompose(T * data_, const vector<size_t>& dims, size_t target_level){
 		data = data_;
 		size_t num_elements = 1;
 		for(const auto& d:dims){
 			num_elements *= d;
 		}
 		data_buffer_size = num_elements * sizeof(T);
+        int max_level = log2(*min_element(dims.begin(), dims.end()));
+        if(target_level > max_level) target_level = max_level;
 		init(dims);
 		if(dims.size() == 1){
 			size_t h = 1;
@@ -52,7 +54,8 @@ public:
 			size_t n1 = dims[0];
 			size_t n2 = dims[1];
 			for(int i=0; i<target_level; i++){
-				decompose_level_2D(data, n1, n2, (T)h, dims[1]);
+				if(!decompose_level_2D(data, n1, n2, (T)h, dims[1]))
+                    return i + 1;
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				h <<= 1;
@@ -64,13 +67,14 @@ public:
 			size_t n2 = dims[1];
 			size_t n3 = dims[2];
 			for(int i=0; i<target_level; i++){
-				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+				if(!decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2])) return i + 1;
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				n3 = (n3 >> 1) + 1;
 				h <<= 1;
 			}
 		}
+        return target_level;
 	}
 
 private:
@@ -105,18 +109,18 @@ private:
 		encoder.encode(quant_inds, compressed_data_pos);
 		encoder.postprocess_encode();
 		size_t compressed_length = compressed_data_pos - compressed;
-		cerr << "Compressed size after Huffman: " << compressed_length << ", ratio = " << num_elements * sizeof(T) * 1.0 / compressed_length << endl;
+		// cerr << "Compressed size after Huffman: " << compressed_length << ", ratio = " << num_elements * sizeof(T) * 1.0 / compressed_length << endl;
         unsigned char * lossless_compressed = NULL;
         size_t lossless_length = sz_lossless_compress(ZSTD_COMPRESSOR, 3, compressed, compressed_length, &lossless_compressed);
         free(compressed);
-		cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(T) * 1.0 / lossless_length << endl;
+		// cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(T) * 1.0 / lossless_length << endl;
 		compressed_size = lossless_length;
 		return lossless_compressed;
 	}
 
 	void init(const vector<size_t>& dims){
 		size_t buffer_size = default_batch_size * (*max_element(dims.begin(), dims.end())) * sizeof(T);
-		cerr << "buffer_size = " << buffer_size << endl;
+		// cerr << "buffer_size = " << buffer_size << endl;
 		if(data_buffer) free(data_buffer);
 		if(correction_buffer) free(correction_buffer);
 		if(load_v_buffer) free(load_v_buffer);
@@ -252,7 +256,7 @@ private:
 		compute_interpolant_difference_2D_vertical(data_pos, n1, n2, stride);
 	}	
 	// decompose n1 x n2 data into coarse level (n1/2 x n2/2)
-	void decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+	bool decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
 		// cerr << "decompose, h = " << h << endl; 
         size_t n1_nodal = (n1 >> 1) + 1;
         size_t n1_coeff = n1 - n1_nodal;
@@ -262,6 +266,23 @@ private:
 		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
         compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride);
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
+        {
+            double nodal_mse = 0;
+            double coeff_mse = 0;
+            for(int i=0; i<n1; i++){
+                for(int j=0; j<n2; j++){
+                    if((i < n1_nodal) && (j < n2_nodal)){
+                        nodal_mse += fabs(data_pos[i * stride + j]);
+                    }
+                    else{
+                        coeff_mse += fabs(data_pos[i * stride + j]);
+                    }
+                }
+            }
+            double total_abse = (coeff_mse + nodal_mse) / (n1 * n2);
+            coeff_mse /= n1 * n2 - n1_nodal * n2_nodal;
+            return (total_abse / coeff_mse) >= 2;
+        }
 	}
 	/*
 		2D reorder + vertical reorder
@@ -399,7 +420,7 @@ private:
 		}
 	}
 	// decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
-	void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+	bool decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
 		data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
 		compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
         size_t n1_nodal = (n1 >> 1) + 1;
@@ -416,21 +437,21 @@ private:
         {
             double nodal_mse = 0;
             double coeff_mse = 0;
-            size_t count = 0;
             for(int i=0; i<n1; i++){
                 for(int j=0; j<n2; j++){
                     for(int k=0; k<n3; k++){
                         if((i < n1_nodal) && (j < n2_nodal) && (k < n3_nodal)){
                             nodal_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
-                            continue;
                         }
-                        count ++;
-                        coeff_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
+                        else{
+                            coeff_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
+                        }
                     }
                 }
             }
-            cerr << count << " = " << n1 * n2 * n3 - n1_nodal * n2_nodal * n3_nodal;
-            cerr << ", level abse = " << coeff_mse / count << ", rest nodal abse = " << nodal_mse / (n1_nodal * n2_nodal * n3_nodal) << endl;
+            double total_abse = (coeff_mse + nodal_mse) / (n1 * n2 * n3);
+            coeff_mse /= n1 * n2 * n3 - n1_nodal * n2_nodal * n3_nodal;
+            return (total_abse / coeff_mse) >= 2;
         }
 	}
 };

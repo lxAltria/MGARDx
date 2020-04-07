@@ -33,6 +33,7 @@ int main(int argc, char ** argv){
        dims[i] = atoi(argv[6 + i]);
        cout << dims[i] << " ";
     }
+    cout << endl;
     double eb = tolerance;
     cout << "Required eb = " << tolerance << endl;
     size_t num_elements = 0;

@@ -44,11 +44,11 @@ public:
 				level_dims[i][target_level - j] = n;
 				n = (n >> 1) + 1;
 			}
-			cerr << "Ns: ";
-			for(int j=0; j<=target_level; j++){
-				cerr << level_dims[i][j] << " ";
-			}
-			cerr << endl;
+			// cerr << "Ns: ";
+			// for(int j=0; j<=target_level; j++){
+			// 	cerr << level_dims[i][j] << " ";
+			// }
+			// cerr << endl;
 		}
 		size_t num_elements = 1;
 		for(const auto& d:dims){
@@ -110,8 +110,8 @@ private:
 
 	void init(const vector<size_t>& dims){
 		size_t buffer_size = default_batch_size * (*max_element(dims.begin(), dims.end())) * sizeof(T);
-		cerr << "buffer_size = " << buffer_size << endl;
-		cerr << "data_buffer_size = " << data_buffer_size << endl;
+		// cerr << "buffer_size = " << buffer_size << endl;
+		// cerr << "data_buffer_size = " << data_buffer_size << endl;
 		if(data_buffer) free(data_buffer);
 		if(correction_buffer) free(correction_buffer);
 		if(load_v_buffer) free(load_v_buffer);
