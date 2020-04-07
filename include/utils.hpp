@@ -13,16 +13,40 @@ namespace MGARD{
 
 using namespace std;
 
-unsigned long sz_lossless_compress(unsigned char *data, size_t dataLength) {
-    unsigned long outSize = 0;
+#define ZSTD_COMPRESSOR 1
+unsigned long sz_lossless_compress(int losslessCompressor, int level, unsigned char* data, unsigned long dataLength, unsigned char** compressBytes)
+{
+    unsigned long outSize = 0; 
     size_t estimatedCompressedSize = 0;
-    if (dataLength < 100)
-        estimatedCompressedSize = 200;
-    else
-        estimatedCompressedSize = dataLength * 1.2;
-    unsigned char * buffer = (unsigned char *) malloc(estimatedCompressedSize);
-    outSize = ZSTD_compress(buffer, estimatedCompressedSize, data, dataLength, 3); //default setting of level is 3
-    free(buffer);
+    switch(losslessCompressor)
+    {
+    case ZSTD_COMPRESSOR:
+        if(dataLength < 100) 
+            estimatedCompressedSize = 200;
+        else
+            estimatedCompressedSize = dataLength*1.2;
+        *compressBytes = (unsigned char*)malloc(estimatedCompressedSize);
+        *reinterpret_cast<size_t*>(*compressBytes) = dataLength;
+        outSize = ZSTD_compress(*compressBytes + sizeof(size_t), estimatedCompressedSize, data, dataLength, level); //default setting of level is 3
+        break;
+    default:
+        printf("Error: Unrecognized lossless compressor in sz_lossless_compress()\n");
+    }
+    return outSize;
+}
+unsigned long sz_lossless_decompress(int losslessCompressor, const unsigned char* compressBytes, unsigned long cmpSize, unsigned char** oriData)
+{
+    unsigned long outSize = 0;
+    switch(losslessCompressor)
+    {
+    case ZSTD_COMPRESSOR:
+        outSize = *reinterpret_cast<const size_t*>(compressBytes);
+        *oriData = (unsigned char*)malloc(outSize);
+        ZSTD_decompress(*oriData, outSize, compressBytes + sizeof(size_t), cmpSize);
+        break;
+    default:
+        printf("Error: Unrecognized lossless compressor in sz_lossless_decompress()\n");
+    }
     return outSize;
 }
 template<typename Type>
@@ -59,8 +83,13 @@ void print(T * data, size_t n1, size_t n2, string s){
     cout << endl;
 }
 // switch the rows in the data for coherent memory access
-// o: nodal data, x: coefficient data
 /*
+@params data_pos: starting position of data
+@params data_buffer: buffer to store intermediate data
+@params n1, n2: dimensions
+@params stride: stride for the non-continguous dimension
+Illustration:
+o: nodal data, x: coefficient data
     oooxx       oooxx
     xxxxx       oooxx
     oooxx   =>  oooxx
@@ -93,6 +122,20 @@ void switch_rows_2D_by_buffer(T * data_pos, T * data_buffer, size_t n1, size_t n
         cur_data_pos += stride;
     }
 }
+// inverse operation for switch_rows_2D_by_buffer
+/*
+@params data_pos: starting position of data
+@params data_buffer: buffer to store intermediate data
+@params n1, n2: dimensions
+@params stride: stride for the non-continguous dimension
+Illustration:
+o: nodal data, x: coefficient data
+    oooxx       oooxx
+    oooxx       xxxxx
+    oooxx   =>  oooxx
+    xxxxx       xxxxx
+    xxxxx       oooxx
+*/
 template <class T>
 void switch_rows_2D_by_buffer_reverse(T * data_pos, T * data_buffer, size_t n1, size_t n2, size_t stride){
     size_t n1_nodal = (n1 >> 1) + 1;
@@ -122,13 +165,17 @@ void switch_rows_2D_by_buffer_reverse(T * data_pos, T * data_buffer, size_t n1, 
 const double alpha = 1.0/12;
 const double beta = 0.5;
 const double gamma = 5.0/6;
-// compute entries for load vector
+// compute entries for load vector in nodal rows
 // for uniform decomposition only
-// @param h: stride of nodals in N_(l+1)
-// output in load_v_buffer
-// Given nodal and adjacent coeff (o    x    o   x      o)
-//                                 0    c[0] 0   c[1]   0
-// according to derivation, load_v[n[1]] = (c[0] * 1/2 + c[1] * 1/2) * h
+/*
+@params load_v_buffer: buffer to store the output load vector
+@params n_nodal, n_coeff: number of nodal values and coeff values
+@params h: interval length
+@params coeff_buffer: starting position of coefficients
+Given nodal and adjacent coeff (o    x    o   x      o)
+                                0    c[0] 0   c[1]   0
+according to derivation, load_v[n[1]] = (c[0] * 1/2 + c[1] * 1/2) * h
+*/
 template <class T>
 void  compute_load_vector_nodal_row(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
@@ -147,10 +194,19 @@ void  compute_load_vector_nodal_row(T * load_v_buffer, size_t n_nodal, size_t n_
     if(n_nodal == n_coeff + 2) load_v_buffer[n_coeff + 1] = 0;
 }
 
-// Given nodal coeff and adjacent coeff (x    x    x      x      x)
-//                                      n[0] c[0] n[1]   c[1]   n[2]
-// according to derivation, 
-// load_v[n[1]] = (n[0] * 1/12 + c[0] * 1/2 + n[1] * 5/6 + c[1] * 1/2 + n[2] * 1/12) * h
+// compute entries for load vector in coeff rows
+// for uniform decomposition only
+/*
+@params load_v_buffer: buffer to store the output load vector
+@params n_nodal, n_coeff: number of nodal values and coeff values
+@params h: interval length
+@params coeff_buffer: starting position of nodal values
+@params coeff_buffer: starting position of coefficients
+Given nodal coeff and adjacent coeff (x    x    x      x      x)
+                                     n[0] c[0] n[1]   c[1]   n[2]
+according to derivation, 
+load_v[n[1]] = (n[0] * 1/12 + c[0] * 1/2 + n[1] * 5/6 + c[1] * 1/2 + n[2] * 1/12) * h
+*/
 template <class T>
 void  compute_load_vector_coeff_row(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * nodal_buffer, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
@@ -171,9 +227,14 @@ void  compute_load_vector_coeff_row(T * load_v_buffer, size_t n_nodal, size_t n_
     // if next n is even, load_v_buffer[n_nodal - 1] = 0
     if(n_nodal == n_coeff + 2) load_v_buffer[n_coeff + 1] = 0;
 }
-// compute correction on nodal value 
+// compute correction on nodal value for 1D case 
 // using Thomas algorithm for tridiagonal inverse
-// @param h: interval length
+/*
+@params correction_buffer: buffer to store the output correction
+@params n_nodal: number of nodal values
+@params h: interval length
+@params load_v_buffer: computed load vector in previous step, will be modified during computation
+*/
 template <class T>
 void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_buffer){
     size_t n = n_nodal;
@@ -203,11 +264,15 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
 }
 // compute entries for load vector in vertical (non-contiguous) direction
 // for uniform decomposition only
-// @param n: dimensions
-// @param stride: stride for vertical adjacent data
-// @param h: stride of nodals in N_(l+1)
-// @param batchsize: number of columns to be computed together
-// output in load_v_buffer
+/*
+@params load_v_buffer: buffer to store the output load vector
+@params nodal_buffer: starting position of nodal values
+@params coeff_buffer: starting position of coefficients
+@params n1_nodal, n1_coeff: number of nodal values and coeffcicients in non-continguous dimension
+@params stride: stride for adjacent data in non-continguous dimension
+@params h: interval length
+@params batchsize: number of columns to be computed together
+*/
 template <class T>
 void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, const T * coeff_buffer, size_t n1_nodal, size_t n1_coeff, size_t stride, T h, int batchsize){
     // T ah = h * 0.25; // derived constant in the formula
@@ -247,9 +312,17 @@ void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, con
         }
     }
 }
-// compute correction on nodal value 
+// compute correction on nodal value for 1D case
 // using Thomas algorithm for tridiagonal inverse
-// @param h: interval length
+/*
+@params correction_buffer: buffer to store the output correction
+@params h: interval length
+@params b, w: pre-computed auxilliary array
+@params n_nodal: number of nodal values
+@params batchsize: number of columns to be computed together
+@params correction_stride: stride for adjacent correction data in non-continguous dimension
+@params load_v_buffer: buffer to store load vector
+*/
 template <class T>
 void compute_correction_batched(T * correction_buffer, T h, const T * b, const T * w, size_t n_nodal, int batchsize, size_t correction_stride, T * load_v_buffer){
     size_t n = n_nodal;
@@ -355,7 +428,17 @@ void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * ho
         compute_correction_batched(nodal_pos, h, b.data(), w.data(), n1_nodal, batchsize, stride, load_v_buffer);
     }
 }
-// compute the corrections
+// compute the corrections for 2D cases
+/*
+@params data_pos: starting position of data
+@params correction_buffer: buffer to store the output correction
+@params load_v_buffer: computed load vector in previous step, will be modified during computation
+@params n1, n2: dimensions
+@params nodal_rows: number of nodal_rows (0 for coefficient plane)
+@params h: interval length
+@params stride: stride for adjacent data in non-continguous dimension
+@params default_batch_size: batchsize of vertical correction computation
+*/
 template <class T>
 void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffer, size_t n1, size_t n2, size_t nodal_rows, T h, size_t stride, int default_batch_size=1){
     size_t n1_nodal = (n1 >> 1) + 1;
@@ -378,7 +461,17 @@ void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffe
     // compute vertical correction
     compute_correction_vertical(data_pos, n1, n2, h, correction_buffer, n2_nodal, load_v_buffer, default_batch_size);
 }
-// compute and add the corrections
+// compute the corrections for 3D cases
+/*
+@params data_pos: starting position of data
+@params correction_buffer: buffer to store the output correction
+@params load_v_buffer: computed load vector in previous step, will be modified during computation
+@params n1, n2, n3: dimensions
+@params nodal_rows: number of nodal planes (0 for coefficient cube)
+@params h: interval length
+@params dim0_stride, dim1_stride: stride for adjacent data in non-continguous dimension
+@params default_batch_size: batchsize of vertical correction computation
+*/
 template <class T>
 void compute_correction_3D(T * data_pos, T * correction_buffer, T * load_v_buffer, size_t n1, size_t n2, size_t n3, size_t nodal_rows, T h, size_t dim0_stride, size_t dim1_stride, int default_batch_size=1){
     size_t n1_nodal = (n1 >> 1) + 1;

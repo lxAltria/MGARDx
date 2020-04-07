@@ -93,7 +93,12 @@ private:
 		}
 		unsigned char * compressed = (unsigned char *) malloc(num_elements * sizeof(T));
 		unsigned char * compressed_data_pos = compressed;
+        // record target level
+        *reinterpret_cast<size_t*>(compressed_data_pos) = target_level;
+        compressed_data_pos += sizeof(size_t);
+        // record quantizer
 		quantizer.save(compressed_data_pos);
+        // encode
 		auto encoder = SZ::HuffmanEncoder<int>();
 		encoder.preprocess_encode(quant_inds, 4*quantizer.get_radius());
 		encoder.save(compressed_data_pos);
@@ -101,10 +106,12 @@ private:
 		encoder.postprocess_encode();
 		size_t compressed_length = compressed_data_pos - compressed;
 		cerr << "Compressed size after Huffman: " << compressed_length << ", ratio = " << num_elements * sizeof(T) * 1.0 / compressed_length << endl;
-		auto lossless_length = sz_lossless_compress(compressed, compressed_length);
+        unsigned char * lossless_compressed = NULL;
+        size_t lossless_length = sz_lossless_compress(ZSTD_COMPRESSOR, 3, compressed, compressed_length, &lossless_compressed);
+        free(compressed);
 		cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(T) * 1.0 / lossless_length << endl;
-		compressed_size = compressed_length;
-		return compressed;
+		compressed_size = lossless_length;
+		return lossless_compressed;
 	}
 
 	void init(const vector<size_t>& dims){

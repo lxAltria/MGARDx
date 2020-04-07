@@ -19,7 +19,7 @@ public:
 		if(correction_buffer) free(correction_buffer);	
 		if(load_v_buffer) free(load_v_buffer);
 	};
-    T * decompress(unsigned char * compressed, size_t compressed_size, const vector<size_t>& dims, size_t target_level){
+    T * decompress(const unsigned char * compressed, size_t compressed_size, const vector<size_t>& dims){
         size_t num_elements = 1;
         for(const auto& d:dims){
             num_elements *= d;
@@ -28,6 +28,7 @@ public:
             free(data);
         }
         data = (T *) malloc(num_elements * sizeof(T));
+        size_t target_level = 0;
         decoding_and_recover(compressed, compressed_size, num_elements, target_level);
         recompose(data, dims, target_level);
         return data;
@@ -88,11 +89,15 @@ private:
 	T * load_v_buffer = NULL;
 	T * correction_buffer = NULL;
 
-    void decoding_and_recover(const unsigned char * compressed, size_t compressed_size, size_t num_elements, int target_level){
+    void decoding_and_recover(const unsigned char * lossless_compressed, size_t lossless_length, size_t num_elements, size_t& target_level){
+        unsigned char * compressed = NULL;
+        size_t compressed_length = sz_lossless_decompress(ZSTD_COMPRESSOR, lossless_compressed, lossless_length, &compressed);
         const unsigned char * compressed_data_pos = compressed;
+        target_level = *reinterpret_cast<const size_t*>(compressed_data_pos);
+        compressed_data_pos += sizeof(size_t);
         auto quantizer = SZ::LinearQuantizer<T>(1);
         auto encoder = SZ::HuffmanEncoder<int>();
-        size_t remaining_length = compressed_size;
+        size_t remaining_length = compressed_length;
         quantizer.load(compressed_data_pos, remaining_length);
         encoder.load(compressed_data_pos, remaining_length);
         auto quant_inds = encoder.decode(compressed_data_pos, num_elements);
