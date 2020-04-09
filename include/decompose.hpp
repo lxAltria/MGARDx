@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include "utils.hpp"
+#include "sz_compress_3d.hpp"
 
 namespace MGARD{
 
@@ -26,7 +27,7 @@ public:
 		for(const auto& d:dims){
 			num_elements *= d;
 		}
-		auto result = quantize_and_encoding(num_elements, dims.size(), eb, target_level, compressed_size);
+		auto result = quantize_and_encoding(dims, num_elements, dims.size(), eb, target_level, compressed_size);
 		return result;
 	}
     // return levels
@@ -40,6 +41,8 @@ public:
         int max_level = log2(*min_element(dims.begin(), dims.end()));
         if(target_level > max_level) target_level = max_level;
 		init(dims);
+        current_dims.resize(dims.size());
+        cerr << "cur dim size: " << current_dims.size() << " " << dims.size() << endl;
 		if(dims.size() == 1){
 			size_t h = 1;
 			size_t n = dims[0];
@@ -54,8 +57,7 @@ public:
 			size_t n1 = dims[0];
 			size_t n2 = dims[1];
 			for(int i=0; i<target_level; i++){
-				if(!decompose_level_2D(data, n1, n2, (T)h, dims[1]))
-                    return i + 1;
+				decompose_level_2D(data, n1, n2, (T)h, dims[1]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				h <<= 1;
@@ -67,7 +69,12 @@ public:
 			size_t n2 = dims[1];
 			size_t n3 = dims[2];
 			for(int i=0; i<target_level; i++){
-				if(!decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2])) return i + 1;
+                current_dims[0] = (n1 >> 1) + 1;
+                current_dims[1] = (n2 >> 1) + 1;
+                current_dims[2] = (n3 >> 1) + 1;
+                cerr << current_dims.size() << endl;
+                cerr << "current_dims = " << current_dims[0] << " " << current_dims[1] << " " << current_dims[2] << endl;
+				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				n3 = (n3 >> 1) + 1;
@@ -84,22 +91,56 @@ private:
 	T * data_buffer = NULL;		// buffer for reordered data
 	T * load_v_buffer = NULL;
 	T * correction_buffer = NULL;
+    vector<size_t> current_dims;
 
-	unsigned char * quantize_and_encoding(size_t num_elements, int n_dims, double eb, int target_level, size_t& compressed_size){
+	unsigned char * quantize_and_encoding(const vector<size_t>& dims, size_t num_elements, int n_dims, double eb, int target_level, size_t& compressed_size){
 		double C2 = 1 + pow(sqrt(3)/2, n_dims);
 		double t = eb / (C2 * (target_level + 1));
 		auto quantizer = SZ::LinearQuantizer<T>(t);
-		vector<int> quant_inds(num_elements);
-		size_t count = 0;
-		for(int i=0; i<num_elements; i++){
-			auto tmp = data[i];
-			quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
-		}
-		unsigned char * compressed = (unsigned char *) malloc(num_elements * sizeof(T));
-		unsigned char * compressed_data_pos = compressed;
+        size_t num_nodal_elements = 1;
+        for(const auto& d: current_dims){
+            num_nodal_elements *= d;
+            cerr << d << " ";
+        }
+        cerr << endl;
+        cerr << "total elements = " << num_elements << ", nodal elements = " << num_nodal_elements << endl;
+        cerr << "current dims: " << current_dims.size() << " " << current_dims[0] << " " << current_dims[1] << " " << current_dims[2] << endl;
+        vector<int> quant_inds(num_elements - num_nodal_elements);
+        // 3d
+        size_t count = 0;
+        for(int i=0; i<dims[0]; i++){
+            for(int j=0; j<dims[1]; j++){
+                for(int k=0; k<dims[2]; k++){
+                    auto tmp = data[i * dims[1] * dims[2] + j * dims[2] + k];
+                    if((i < current_dims[0]) && (j < current_dims[1]) && (k < current_dims[2])){
+                        data_buffer[i * current_dims[1] * current_dims[2] + j * current_dims[2] + k] = tmp;
+                    }
+                    else{
+                        quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
+                    }
+                }
+            }
+        }
+        // vector<int> quant_inds(num_elements);
+        // size_t count = 0;
+        // for(int i=0; i<num_elements; i++){
+        //  auto tmp = data[i];
+        //  quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
+        // }
+        unsigned char * compressed = (unsigned char *) malloc(num_elements * sizeof(T));
+        unsigned char * compressed_data_pos = compressed;
         // record target level
         *reinterpret_cast<size_t*>(compressed_data_pos) = target_level;
         compressed_data_pos += sizeof(size_t);
+        // sz compressing
+        size_t sz_compressed_size = 0;
+        auto sz_compressed = sz_compress_3d(data_buffer, current_dims[0], current_dims[1], current_dims[2], t, sz_compressed_size, 6);
+        // record sz compressed data
+        *reinterpret_cast<size_t*>(compressed_data_pos) = sz_compressed_size;
+        compressed_data_pos += sizeof(size_t);
+        memcpy(compressed_data_pos, sz_compressed, sz_compressed_size);
+        compressed_data_pos += sz_compressed_size;
+        free(sz_compressed);
         // record quantizer
 		quantizer.save(compressed_data_pos);
         // encode
@@ -256,7 +297,7 @@ private:
 		compute_interpolant_difference_2D_vertical(data_pos, n1, n2, stride);
 	}	
 	// decompose n1 x n2 data into coarse level (n1/2 x n2/2)
-	bool decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+	void decompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
 		// cerr << "decompose, h = " << h << endl; 
         size_t n1_nodal = (n1 >> 1) + 1;
         size_t n1_coeff = n1 - n1_nodal;
@@ -266,23 +307,6 @@ private:
 		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
         compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride);
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
-        {
-            double nodal_mse = 0;
-            double coeff_mse = 0;
-            for(int i=0; i<n1; i++){
-                for(int j=0; j<n2; j++){
-                    if((i < n1_nodal) && (j < n2_nodal)){
-                        nodal_mse += fabs(data_pos[i * stride + j]);
-                    }
-                    else{
-                        coeff_mse += fabs(data_pos[i * stride + j]);
-                    }
-                }
-            }
-            double total_abse = (coeff_mse + nodal_mse) / (n1 * n2);
-            coeff_mse /= n1 * n2 - n1_nodal * n2_nodal;
-            return (total_abse / coeff_mse) >= 2;
-        }
 	}
 	/*
 		2D reorder + vertical reorder
@@ -420,7 +444,7 @@ private:
 		}
 	}
 	// decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
-	bool decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+	void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
 		data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
 		compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
         size_t n1_nodal = (n1 >> 1) + 1;
@@ -433,25 +457,6 @@ private:
             apply_correction_batched(nodal_pos, correction_pos, n2_nodal, dim1_stride, n3_nodal, true);
             nodal_pos += dim0_stride;
             correction_pos += n2_nodal * n3_nodal;
-        }
-        {
-            double nodal_mse = 0;
-            double coeff_mse = 0;
-            for(int i=0; i<n1; i++){
-                for(int j=0; j<n2; j++){
-                    for(int k=0; k<n3; k++){
-                        if((i < n1_nodal) && (j < n2_nodal) && (k < n3_nodal)){
-                            nodal_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
-                        }
-                        else{
-                            coeff_mse += fabs(data_pos[i * dim0_stride + j * dim1_stride + k]);
-                        }
-                    }
-                }
-            }
-            double total_abse = (coeff_mse + nodal_mse) / (n1 * n2 * n3);
-            coeff_mse /= n1 * n2 * n3 - n1_nodal * n2_nodal * n3_nodal;
-            return (total_abse / coeff_mse) >= 2;
         }
 	}
 };
