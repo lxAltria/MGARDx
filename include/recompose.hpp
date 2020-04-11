@@ -99,15 +99,20 @@ private:
                 cerr << endl;
             }
         }
-        // recover sz compressed
-        size_t sz_compressed_size = *reinterpret_cast<const size_t*>(compressed_data_pos);
-        compressed_data_pos += sizeof(size_t);
+        bool use_sz = *reinterpret_cast<const unsigned char*>(compressed_data_pos);
+        compressed_data_pos += sizeof(unsigned char);
         size_t n1_nodal = level_dims[0][0];
         size_t n2_nodal = level_dims[1][0];
         size_t n3_nodal = level_dims[2][0];
-        cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
-        auto sz_dec = sz_decompress_3d<T>(compressed_data_pos, n1_nodal, n2_nodal, n3_nodal);
-        compressed_data_pos += sz_compressed_size;
+        T * sz_dec = NULL;
+        if(use_sz){
+            // recover sz compressed
+            size_t sz_compressed_size = *reinterpret_cast<const size_t*>(compressed_data_pos);
+            compressed_data_pos += sizeof(size_t);
+            cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
+            sz_dec = sz_decompress_3d<T>(compressed_data_pos, n1_nodal, n2_nodal, n3_nodal);
+            compressed_data_pos += sz_compressed_size;
+        }
         // recover mgard
         auto quantizer = SZ::LinearQuantizer<T>(1);
         auto encoder = SZ::HuffmanEncoder<int>();
@@ -116,23 +121,27 @@ private:
         encoder.load(compressed_data_pos, remaining_length);
         auto quant_inds = encoder.decode(compressed_data_pos, num_elements);
         encoder.postprocess_decode();
-        // for(int i=0; i<num_elements; i++){
-        //     data[i] = quantizer.recover(0, quant_inds[i]);
-        // }
-        size_t count = 0;
-        for(int i=0; i<dims[0]; i++){
-            for(int j=0; j<dims[1]; j++){
-                for(int k=0; k<dims[2]; k++){
-                    if((i < n1_nodal) && (j < n2_nodal) && (k < n3_nodal)){
-                        data[i * dims[1] * dims[2] + j * dims[2] + k] = sz_dec[i * n2_nodal * n3_nodal + j * n3_nodal + k];
-                    }
-                    else{
-                        data[i * dims[1] * dims[2] + j * dims[2] + k] = quantizer.recover(0, quant_inds[count ++]);
+        if(use_sz){
+            size_t count = 0;
+            for(int i=0; i<dims[0]; i++){
+                for(int j=0; j<dims[1]; j++){
+                    for(int k=0; k<dims[2]; k++){
+                        if((i < n1_nodal) && (j < n2_nodal) && (k < n3_nodal)){
+                            data[i * dims[1] * dims[2] + j * dims[2] + k] = sz_dec[i * n2_nodal * n3_nodal + j * n3_nodal + k];
+                        }
+                        else{
+                            data[i * dims[1] * dims[2] + j * dims[2] + k] = quantizer.recover(0, quant_inds[count ++]);
+                        }
                     }
                 }
             }
+            free(sz_dec);
         }
-        free(sz_dec);
+        else{
+            for(int i=0; i<num_elements; i++){
+                data[i] = quantizer.recover(0, quant_inds[i]);
+            }
+        }
         free(compressed);
     }
 

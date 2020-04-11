@@ -15,7 +15,9 @@ using namespace std;
 template <class T>
 class Decomposer{
 public:
-	Decomposer(){};
+	Decomposer(bool use_sz_=true){
+            use_sz = use_sz_;
+        };
 	~Decomposer(){
 		if(data_buffer) free(data_buffer);
 		if(correction_buffer) free(correction_buffer);	
@@ -42,7 +44,6 @@ public:
         if(target_level > max_level) target_level = max_level;
 		init(dims);
         current_dims.resize(dims.size());
-        cerr << "cur dim size: " << current_dims.size() << " " << dims.size() << endl;
 		if(dims.size() == 1){
 			size_t h = 1;
 			size_t n = dims[0];
@@ -73,7 +74,6 @@ public:
                 current_dims[1] = (n2 >> 1) + 1;
                 current_dims[2] = (n3 >> 1) + 1;
                 cerr << current_dims.size() << endl;
-                cerr << "current_dims = " << current_dims[0] << " " << current_dims[1] << " " << current_dims[2] << endl;
 				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
@@ -87,6 +87,7 @@ public:
 private:
 	unsigned int default_batch_size = 32;
 	size_t data_buffer_size = 0;
+    bool use_sz = true;
 	T * data = NULL;			// pointer to the original data
 	T * data_buffer = NULL;		// buffer for reordered data
 	T * load_v_buffer = NULL;
@@ -100,47 +101,50 @@ private:
         size_t num_nodal_elements = 1;
         for(const auto& d: current_dims){
             num_nodal_elements *= d;
-            cerr << d << " ";
         }
-        cerr << endl;
-        cerr << "total elements = " << num_elements << ", nodal elements = " << num_nodal_elements << endl;
-        cerr << "current dims: " << current_dims.size() << " " << current_dims[0] << " " << current_dims[1] << " " << current_dims[2] << endl;
         vector<int> quant_inds(num_elements - num_nodal_elements);
-        // 3d
-        size_t count = 0;
-        for(int i=0; i<dims[0]; i++){
-            for(int j=0; j<dims[1]; j++){
-                for(int k=0; k<dims[2]; k++){
-                    auto tmp = data[i * dims[1] * dims[2] + j * dims[2] + k];
-                    if((i < current_dims[0]) && (j < current_dims[1]) && (k < current_dims[2])){
-                        data_buffer[i * current_dims[1] * current_dims[2] + j * current_dims[2] + k] = tmp;
-                    }
-                    else{
-                        quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
-                    }
-                }
-            }
-        }
-        // vector<int> quant_inds(num_elements);
-        // size_t count = 0;
-        // for(int i=0; i<num_elements; i++){
-        //  auto tmp = data[i];
-        //  quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
-        // }
+
         unsigned char * compressed = (unsigned char *) malloc(num_elements * sizeof(T));
         unsigned char * compressed_data_pos = compressed;
         // record target level
         *reinterpret_cast<size_t*>(compressed_data_pos) = target_level;
         compressed_data_pos += sizeof(size_t);
-        // sz compressing
-        size_t sz_compressed_size = 0;
-        auto sz_compressed = sz_compress_3d(data_buffer, current_dims[0], current_dims[1], current_dims[2], t, sz_compressed_size, 6);
-        // record sz compressed data
-        *reinterpret_cast<size_t*>(compressed_data_pos) = sz_compressed_size;
-        compressed_data_pos += sizeof(size_t);
-        memcpy(compressed_data_pos, sz_compressed, sz_compressed_size);
-        compressed_data_pos += sz_compressed_size;
-        free(sz_compressed);
+        *reinterpret_cast<unsigned char*>(compressed_data_pos) = use_sz;
+        compressed_data_pos += sizeof(unsigned char);
+        if(use_sz){
+            // 3d
+            size_t count = 0;
+            for(int i=0; i<dims[0]; i++){
+                for(int j=0; j<dims[1]; j++){
+                    for(int k=0; k<dims[2]; k++){
+                        auto tmp = data[i * dims[1] * dims[2] + j * dims[2] + k];
+                        if((i < current_dims[0]) && (j < current_dims[1]) && (k < current_dims[2])){
+                            data_buffer[i * current_dims[1] * current_dims[2] + j * current_dims[2] + k] = tmp;
+                        }
+                        else{
+                            quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
+                        }
+                    }
+                }
+            }
+            // sz compressing
+            size_t sz_compressed_size = 0;
+            auto sz_compressed = sz_compress_3d(data_buffer, current_dims[0], current_dims[1], current_dims[2], t, sz_compressed_size, 6);
+            // record sz compressed data
+            *reinterpret_cast<size_t*>(compressed_data_pos) = sz_compressed_size;
+            compressed_data_pos += sizeof(size_t);
+            memcpy(compressed_data_pos, sz_compressed, sz_compressed_size);
+            compressed_data_pos += sz_compressed_size;
+            free(sz_compressed);
+        }
+        else{
+            quant_inds.resize(num_elements);
+            size_t count = 0;
+            for(int i=0; i<num_elements; i++){
+             auto tmp = data[i];
+             quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
+            }
+        }
         // record quantizer
 		quantizer.save(compressed_data_pos);
         // encode
@@ -150,11 +154,9 @@ private:
 		encoder.encode(quant_inds, compressed_data_pos);
 		encoder.postprocess_encode();
 		size_t compressed_length = compressed_data_pos - compressed;
-		// cerr << "Compressed size after Huffman: " << compressed_length << ", ratio = " << num_elements * sizeof(T) * 1.0 / compressed_length << endl;
         unsigned char * lossless_compressed = NULL;
         size_t lossless_length = sz_lossless_compress(ZSTD_COMPRESSOR, 3, compressed, compressed_length, &lossless_compressed);
         free(compressed);
-		// cerr << "Compressed size after ZSTD: " << lossless_length << ",  ratio = " << num_elements * sizeof(T) * 1.0 / lossless_length << endl;
 		compressed_size = lossless_length;
 		return lossless_compressed;
 	}
