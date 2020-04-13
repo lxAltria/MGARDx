@@ -1,0 +1,73 @@
+98 1200 1200 
+Decomposition time: 4.1082s
+Recomposition time: 4.15194s
+Max value = 101820, min value = 2285.46
+Max error = 0.0390625, pos = 1499793
+MSE = 1.3696e-06, PSNR = 158.594
+98 1200 1200 
+Decomposition time: 4.7687s
+Recomposition time: 4.68765s
+Max value = 0.00301153, min value = 0
+Max error = 4.65661e-10, pos = 42830717
+MSE = 1.02995e-23, PSNR = 179.448
+98 1200 1200 
+Decomposition time: 4.11145s
+Recomposition time: 4.14527s
+Max value = 0.0148813, min value = 0
+Max error = 2.79397e-09, pos = 55831286
+MSE = 1.43373e-22, PSNR = 181.888
+98 1200 1200 
+Decomposition time: 4.67769s
+Recomposition time: 4.72608s
+Max value = 0.0016005, min value = 0
+Max error = 3.49246e-10, pos = 91888857
+MSE = 2.17458e-24, PSNR = 180.711
+98 1200 1200 
+Decomposition time: 4.1083s
+Recomposition time: 4.14051s
+Max value = 0.00637207, min value = 0
+Max error = 9.31323e-10, pos = 44319689
+MSE = 3.58283e-23, PSNR = 180.543
+98 1200 1200 
+Decomposition time: 4.10574s
+Recomposition time: 4.14446s
+Max value = 0.000756969, min value = 0
+Max error = 1.16415e-10, pos = 78877303
+MSE = 1.47492e-24, PSNR = 175.894
+98 1200 1200 
+Decomposition time: 4.10406s
+Recomposition time: 4.14063s
+Max value = 0.0195234, min value = 0
+Max error = 6.51926e-09, pos = 3792838
+MSE = 8.02681e-20, PSNR = 156.766
+98 1200 1200 
+Decomposition time: 4.10506s
+Recomposition time: 4.13827s
+Max value = 204.473, min value = 0
+Max error = 4.57764e-05, pos = 21314534
+MSE = 7.07999e-12, PSNR = 157.712
+98 1200 1200 
+Decomposition time: 4.10972s
+Recomposition time: 4.14193s
+Max value = 314.63, min value = 181.915
+Max error = 0.00012207, pos = 416645
+MSE = 2.05772e-11, PSNR = 149.325
+98 1200 1200 
+Decomposition time: 4.11005s
+Recomposition time: 4.15416s
+Max value = 46.6766, min value = -71.7543
+Max error = 2.67029e-05, pos = 138739712
+MSE = 8.40327e-13, PSNR = 162.225
+98 1200 1200 
+Decomposition time: 4.10961s
+Recomposition time: 4.14117s
+Max value = 59.4211, min value = -40.1549
+Max error = 2.28882e-05, pos = 139719456
+MSE = 8.35007e-13, PSNR = 160.746
+98 1200 1200 
+Decomposition time: 4.11253s
+Recomposition time: 4.1623s
+Max value = 26.7712, min value = -37.1214
+Max error = 9.53674e-06, pos = 133931341
+MSE = 6.16627e-14, PSNR = 168.209
+['PRES-98x1200x1200.dat', 'QC-98x1200x1200.dat', 'QG-98x1200x1200.dat', 'QI-98x1200x1200.dat', 'QR-98x1200x1200.dat', 'QS-98x1200x1200.dat', 'QV-98x1200x1200.dat', 'RH-98x1200x1200.dat', 'T-98x1200x1200.dat', 'U-98x1200x1200.dat', 'V-98x1200x1200.dat', 'W-98x1200x1200.dat']

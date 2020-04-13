@@ -1,0 +1,37 @@
+512 512 512 
+Decomposition time: 4.16007s
+Recomposition time: 4.22778s
+Max value = 115862, min value = 0.057997
+Max error = 0.00390625, pos = 54080355
+MSE = 1.13487e-12, PSNR = 220.729
+512 512 512 
+Decomposition time: 4.16275s
+Recomposition time: 4.21993s
+Max value = 13778.9, min value = 0
+Max error = 0.000976562, pos = 53819234
+MSE = 2.11516e-13, PSNR = 209.531
+512 512 512 
+Decomposition time: 4.16525s
+Recomposition time: 4.21957s
+Max value = 4.78258e+06, min value = 2280.98
+Max error = 0.5, pos = 52764512
+MSE = 1.32135e-06, PSNR = 192.379
+512 512 512 
+Decomposition time: 4.15852s
+Recomposition time: 4.21511s
+Max value = 3.18668e+07, min value = -5.04169e+07
+Max error = 8, pos = 6144738
+MSE = 0.260473, PSNR = 164.149
+512 512 512 
+Decomposition time: 4.17123s
+Recomposition time: 4.35185s
+Max value = 5.65056e+07, min value = -4.39329e+07
+Max error = 8, pos = 43879744
+MSE = 0.102832, PSNR = 169.917
+512 512 512 
+Decomposition time: 4.35376s
+Recomposition time: 4.23213s
+Max value = 3.33863e+07, min value = -3.8938e+07
+Max error = 8, pos = 45706050
+MSE = 0.0870495, PSNR = 167.788
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']

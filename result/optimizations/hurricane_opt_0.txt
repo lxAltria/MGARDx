@@ -1,0 +1,79 @@
+100 500 500 
+Decomposition time: 0.905495s
+Recomposition time: 0.914979s
+Max value = 0.00204795, min value = 0
+Max error = 2.32831e-10, pos = 5335706
+MSE = 8.78039e-24, PSNR = 176.791
+100 500 500 
+Decomposition time: 0.739472s
+Recomposition time: 0.742945s
+Max value = 0.00750586, min value = 0
+Max error = 4.65661e-10, pos = 1416206
+MSE = 2.18828e-23, PSNR = 184.107
+100 500 500 
+Decomposition time: 0.718631s
+Recomposition time: 0.722639s
+Max value = 3224.4, min value = -3411.74
+Max error = 0.000732422, pos = 185661
+MSE = 6.03019e-10, PSNR = 168.635
+100 500 500 
+Decomposition time: 0.824894s
+Recomposition time: 0.827704s
+Max value = 0.00204795, min value = 0
+Max error = 2.32831e-10, pos = 4639121
+MSE = 7.65888e-24, PSNR = 177.385
+100 500 500 
+Decomposition time: 0.718641s
+Recomposition time: 0.722414s
+Max value = 0.00729519, min value = 0
+Max error = 9.31323e-10, pos = 6938358
+MSE = 4.0989e-24, PSNR = 191.134
+100 500 500 
+Decomposition time: 0.891564s
+Recomposition time: 0.891553s
+Max value = 0.000846364, min value = 0
+Max error = 1.16415e-10, pos = 10425500
+MSE = 2.32136e-24, PSNR = 174.894
+100 500 500 
+Decomposition time: 0.738191s
+Recomposition time: 0.727739s
+Max value = 0.00633465, min value = 0
+Max error = 4.65661e-10, pos = 938357
+MSE = 1.30013e-23, PSNR = 184.895
+100 500 500 
+Decomposition time: 0.717823s
+Recomposition time: 0.722305s
+Max value = 0.000856026, min value = 0
+Max error = 1.16415e-10, pos = 8889502
+MSE = 9.04376e-25, PSNR = 179.086
+100 500 500 
+Decomposition time: 0.718737s
+Recomposition time: 0.722163s
+Max value = 0.0204207, min value = 0
+Max error = 7.45058e-09, pos = 414725
+MSE = 5.32335e-20, PSNR = 158.94
+100 500 500 
+Decomposition time: 0.717521s
+Recomposition time: 0.72366s
+Max value = 29.6467, min value = -76.5545
+Max error = 3.05176e-05, pos = 19758739
+MSE = 3.14132e-12, PSNR = 155.551
+100 500 500 
+Decomposition time: 0.718631s
+Recomposition time: 0.728161s
+Max value = 39.5582, min value = -53.0226
+Max error = 1.52588e-05, pos = 2814605
+MSE = 2.65295e-13, PSNR = 165.093
+100 500 500 
+Decomposition time: 0.716546s
+Recomposition time: 0.720693s
+Max value = 48.0858, min value = -45.6146
+Max error = 1.14441e-05, pos = 835639
+MSE = 3.04937e-13, PSNR = 164.593
+100 500 500 
+Decomposition time: 0.74361s
+Recomposition time: 0.724853s
+Max value = 13.3332, min value = -3.24115
+Max error = 9.53674e-07, pos = 6923813
+MSE = 9.3973e-17, PSNR = 184.659
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
