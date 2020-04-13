@@ -29,6 +29,7 @@ public:
 		for(const auto& d:dims){
 			num_elements *= d;
 		}
+        writefile(string("decomposed.dat").c_str(), data, num_elements);
 		auto result = quantize_and_encoding(dims, num_elements, dims.size(), eb, target_level, compressed_size);
 		return result;
 	}
@@ -73,7 +74,7 @@ public:
                 current_dims[0] = (n1 >> 1) + 1;
                 current_dims[1] = (n2 >> 1) + 1;
                 current_dims[2] = (n3 >> 1) + 1;
-                cerr << current_dims.size() << endl;
+                // cerr << current_dims[0] << " " << current_dims[1] << " " << current_dims[2] << " " << endl;
 				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;

@@ -3,81 +3,96 @@
 #include <cstdlib>
 #include <vector>
 #include <iomanip>
+#include <cmath>
 #include "decompose.hpp"
 #include "recompose.hpp"
 
 using namespace std;
 
 template <class T>
-vector<T> rand_vec(int n, T scale=1){
-	vector<T> result(n);
-	for(int i=0; i<n; i++){
-		result[i] = scale * ( (rand() * 2.0 / RAND_MAX) - 1);
-	}
-	return result;
+void test_decompose(vector<T>& data, const vector<size_t>& dims, int target_level){
+    struct timespec start, end;
+    int err = 0;
+    err = clock_gettime(CLOCK_REALTIME, &start);
+    MGARD::Decomposer<T> decomposer;
+    decomposer.decompose(data.data(), dims, target_level);
+    err = clock_gettime(CLOCK_REALTIME, &end);
+    cout << "Decomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
 }
 
 template <class T>
-void compute_interpolant_difference(vector<T>& data, const vector<T>& data_, int n, int target_stride){
-	data.push_back(data.back());
-	double interpolant = 0;
-	double mse = 0;
-	for(int i=0; i<n; i++){
-		int residue = i % target_stride;
-		int ind = i / target_stride;
-		if(residue){
-			double lambda = residue * 1.0 / target_stride;
-			interpolant = (1 - lambda) * data[ind * target_stride] + lambda * data[(ind+1)*target_stride];
-		}
-		else interpolant = data[i];
-		mse += (data_[i] - interpolant) * (data_[i] - interpolant);
-		cerr << setprecision(4) << data_[i] - interpolant << " ";
-	}
-	cerr << endl;
-	cerr << "MSE = " << mse << endl;
-	data.pop_back();
+void test_recompose(vector<T>& data, const vector<size_t>& dims, int target_level){
+    struct timespec start, end;
+    int err = 0;
+    err = clock_gettime(CLOCK_REALTIME, &start);
+    MGARD::Recomposer<T> recomposer;
+    recomposer.recompose(data.data(), dims, target_level);
+    err = clock_gettime(CLOCK_REALTIME, &end);
+    cerr << "Recomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+}
+
+template <class T>
+void print_statistics(const T * data_ori, const T * data_dec, size_t data_size){
+    double max_val = data_ori[0];
+    double min_val = data_ori[0];
+    double max_abs = fabs(data_ori[0]);
+    for(int i=0; i<data_size; i++){
+        if(data_ori[i] > max_val) max_val = data_ori[i];
+        if(data_ori[i] < min_val) min_val = data_ori[i];
+        if(fabs(data_ori[i]) > max_abs) max_abs = fabs(data_ori[i]);
+    }
+    double max_err = 0;
+    int pos = 0;
+    double mse = 0;
+    for(int i=0; i<data_size; i++){
+        double err = data_ori[i] - data_dec[i];
+        mse += err * err;
+        if(fabs(err) > max_err){
+            pos = i;
+            max_err = fabs(err);
+        }
+    }
+    mse /= data_size;
+    double psnr = 20 * log10((max_val - min_val) / sqrt(mse));
+    cout << "Max value = " << max_val << ", min value = " << min_val << endl;
+    cout << "Max error = " << max_err << ", pos = " << pos << endl;
+    cout << "MSE = " << mse << ", PSNR = " << psnr << endl;
 }
 
 int main(int argc, char ** argv){
-	const int n = atoi(argv[1]);
-	const int target_level = atoi(argv[2]);
-	const int target_stride = 1 << target_level;
-	vector<double> data(n);
-	for(int i=0; i<n; i++){
-		data[i] = 0.05 * (i - 5) * (i - 10) * (i - 15); 
-	}
-	auto data_(data);
-	for(int i=0; i<n; i+=target_stride){
-		cout << data[i] << " ";
-	}
-	cout << endl;
-	// direct interpolant
-	compute_interpolant_difference(data, data_, n, target_stride);
-	// MGARD::decompose(data.data(), n, target_level);
-	MGARD::Decomposer<double> decomposer;
-	vector<size_t> dims(1, n);
-	decomposer.decompose(data.data(), dims, target_level);
-	// MGARD interpolant
-	vector<double> data_reordered = vector<double>(n, 0);
-	for(int i=0, j=0; i<n; i+=target_stride, j++){
-		cout << data[j] << " ";
-		data_reordered[i] = data[j];
-	}
-	cout << endl;
-	compute_interpolant_difference(data_reordered, data_, n, target_stride);
-    for(int i=(n+1)/2; i<n; i++){
-        data[i] = 0;
+    string filename = string(argv[1]);
+    int type = atoi(argv[2]); // 0 for float, 1 for double
+    int target_level = atoi(argv[3]);
+    const int num_dims = atoi(argv[4]);
+    vector<size_t> dims(num_dims);
+    for(int i=0; i<dims.size(); i++){
+       dims[i] = atoi(argv[5 + i]);
+       cout << dims[i] << " ";
     }
-	MGARD::Recomposer<double> recomposer;
-	recomposer.recompose(data.data(), dims, target_level);
-	cerr << "Origin data: " << endl;
-	for(int i=0; i<n; i++){
-		cerr << data_[i] << " ";
-	}
-	cerr << endl;
-	cerr << "Recomposed data: " << endl;
-	for(int i=0; i<n; i++){
-		cerr << data[i] << " ";
-	}
-	cerr << endl;
+    cout << endl;
+    size_t num_elements = 0;
+    switch(type){
+        case 0:
+            {
+                auto data = MGARD::readfile<float>(filename.c_str(), num_elements);
+                auto data_ori(data);
+                test_decompose(data, dims, target_level);
+                test_recompose(data, dims, target_level);
+                print_statistics(data_ori.data(), data.data(), num_elements);
+                break;
+            }
+        case 1:
+            {
+                auto data = MGARD::readfile<double>(filename.c_str(), num_elements);
+                auto data_ori(data);
+                test_decompose(data, dims, target_level);
+                test_recompose(data, dims, target_level);
+                print_statistics(data_ori.data(), data.data(), num_elements);
+                break;
+            }
+        default:
+            cerr << "Only 0 (float) and 1 (double) are implemented in this test\n";
+            exit(0);
+    }
+    return 0;
 }

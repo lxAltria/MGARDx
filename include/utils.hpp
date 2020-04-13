@@ -179,9 +179,9 @@ according to derivation, load_v[n[1]] = (c[0] * 1/2 + c[1] * 1/2) * h
 template <class T>
 void  compute_load_vector_nodal_row(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
-    // T ah = h * 0.5; // derived constant in the formula
+    T ah = h * 0.5; // derived constant in the formula
     // eliminate h for efficiency
-    T ah = beta; 
+    // T ah = beta; 
     // first nodal value
     load_v_buffer[0] = coeff[0] * ah;
     // iterate through nodal values
@@ -212,11 +212,14 @@ void  compute_load_vector_coeff_row(T * load_v_buffer, size_t n_nodal, size_t n_
     T const * coeff = coeff_buffer;
     T const * nodal = nodal_buffer;
     // T ah = h * 0.5; // derived constant in the formula
+    T ah = alpha * h;   // 1/12
+    T bh = beta * h;    // 1/2
+    T ch = gamma * h;   // 5/6
     // eliminate h for efficiency
-    T ah = alpha;   // 1/12
-    T bh = beta;    // 1/2
-    T ch = gamma;   // 5/6
-    // first nodal value
+    // T ah = alpha;   // 1/12
+    // T bh = beta;    // 1/2
+    // T ch = gamma;   // 5/6
+    // // first nodal value
     load_v_buffer[0] = nodal[0] * ch / 2 + coeff[0] * bh + nodal[1] * ah;
     // iterate through nodal values
     for(int i=1; i<n_coeff; i++){
@@ -242,15 +245,15 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
     // forward pass
     // simplified algorithm
     T * d = load_v_buffer;
-    // vector<T> b(n, h*4/3);
-    // b[0] = h*2/3;
-    // b[n-1] = h*2/3;
-    // T c = h/3;
+    vector<T> b(n, h*4/3);
+    b[0] = h*2/3;
+    b[n-1] = h*2/3;
+    T c = h/3;
     // eliminate h for efficiency
-    vector<T> b(n, 4.0/3);
-    b[0] = 2.0/3;
-    b[n-1] = 2.0/3;
-    T c = 1.0/3;
+    // vector<T> b(n, 4.0/3);
+    // b[0] = 2.0/3;
+    // b[n-1] = 2.0/3;
+    // T c = 1.0/3;
     for(int i=1; i<n; i++){
         auto w = c / b[i-1];
         b[i] = b[i] - w * c;

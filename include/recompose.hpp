@@ -42,6 +42,9 @@ public:
 		}
 		data_buffer_size = num_elements * sizeof(T);
 		init(dims);
+        if(level_dims.empty()){
+            init_levels(dims, target_level);
+        }
 		size_t h = 1 << (target_level - 1);
 		if(dims.size() == 1){
 			for(int i=0; i<target_level; i++){
@@ -76,29 +79,31 @@ private:
 	T * correction_buffer = NULL;
     vector<vector<size_t>> level_dims;
 
+    void init_levels(const vector<size_t>& dims, size_t target_level){
+        // compute n_nodal in each level
+        for(int i=0; i<dims.size(); i++){
+            level_dims.push_back(vector<size_t>(target_level + 1));
+            int n = dims[i];
+            for(int j=0; j<=target_level; j++){
+                level_dims[i][target_level - j] = n;
+                n = (n >> 1) + 1;
+            }
+        }
+        for(int i=0; i<dims.size(); i++){
+            for(int j=0; j<=target_level; j++){
+                cerr << level_dims[i][j] << " ";
+            }
+            cerr << endl;
+        }
+    }
+
     void decoding_and_recover(const unsigned char * lossless_compressed, size_t lossless_length, const vector<size_t>& dims, size_t num_elements, size_t& target_level){
         unsigned char * compressed = NULL;
         size_t compressed_length = sz_lossless_decompress(ZSTD_COMPRESSOR, lossless_compressed, lossless_length, &compressed);
         const unsigned char * compressed_data_pos = compressed;
         target_level = *reinterpret_cast<const size_t*>(compressed_data_pos);
         compressed_data_pos += sizeof(size_t);
-        {
-            // compute n_nodal in each level
-            for(int i=0; i<dims.size(); i++){
-                level_dims.push_back(vector<size_t>(target_level + 1));
-                int n = dims[i];
-                for(int j=0; j<=target_level; j++){
-                    level_dims[i][target_level - j] = n;
-                    n = (n >> 1) + 1;
-                }
-            }
-            for(int i=0; i<dims.size(); i++){
-                for(int j=0; j<=target_level; j++){
-                    cerr << level_dims[i][j] << " ";
-                }
-                cerr << endl;
-            }
-        }
+        init_levels(dims, target_level);
         bool use_sz = *reinterpret_cast<const unsigned char*>(compressed_data_pos);
         compressed_data_pos += sizeof(unsigned char);
         size_t n1_nodal = level_dims[0][0];
