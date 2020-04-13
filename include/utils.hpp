@@ -179,9 +179,9 @@ according to derivation, load_v[n[1]] = (c[0] * 1/2 + c[1] * 1/2) * h
 template <class T>
 void  compute_load_vector_nodal_row(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
-    T ah = h * 0.5; // derived constant in the formula
+    // T ah = h * 0.5; // derived constant in the formula
     // eliminate h for efficiency
-    // T ah = beta; 
+    T ah = beta; 
     // first nodal value
     load_v_buffer[0] = coeff[0] * ah;
     // iterate through nodal values
@@ -211,14 +211,13 @@ template <class T>
 void  compute_load_vector_coeff_row(T * load_v_buffer, size_t n_nodal, size_t n_coeff, T h, const T * nodal_buffer, const T * coeff_buffer){
     T const * coeff = coeff_buffer;
     T const * nodal = nodal_buffer;
-    // T ah = h * 0.5; // derived constant in the formula
-    T ah = alpha * h;   // 1/12
-    T bh = beta * h;    // 1/2
-    T ch = gamma * h;   // 5/6
+    // T ah = alpha * h;   // 1/12
+    // T bh = beta * h;    // 1/2
+    // T ch = gamma * h;   // 5/6
     // eliminate h for efficiency
-    // T ah = alpha;   // 1/12
-    // T bh = beta;    // 1/2
-    // T ch = gamma;   // 5/6
+    T ah = alpha;   // 1/12
+    T bh = beta;    // 1/2
+    T ch = gamma;   // 5/6
     // // first nodal value
     load_v_buffer[0] = nodal[0] * ch / 2 + coeff[0] * bh + nodal[1] * ah;
     // iterate through nodal values
@@ -245,19 +244,36 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
     // forward pass
     // simplified algorithm
     T * d = load_v_buffer;
-    vector<T> b(n, h*4/3);
-    b[0] = h*2/3;
-    b[n-1] = h*2/3;
-    T c = h/3;
+    // vector<T> b(n, h*4/3);
+    // b[0] = h*2/3;
+    // b[n-1] = h*2/3;
+    // T c = h/3;
     // eliminate h for efficiency
-    // vector<T> b(n, 4.0/3);
-    // b[0] = 2.0/3;
-    // b[n-1] = 2.0/3;
-    // T c = 1.0/3;
+    vector<T> b(n, 4.0/3);
+    b[0] = 2.0/3;
+    b[n-1] = 2.0/3;
+    T c = 1.0/3;
     for(int i=1; i<n; i++){
         auto w = c / b[i-1];
         b[i] = b[i] - w * c;
         d[i] = d[i] - w * d[i-1];
+    }
+    // backward pass
+    correction_buffer[n-1] = d[n-1] / b[n-1];
+    for(int i=n-2; i>=0; i--){
+        correction_buffer[i] = (d[i] - c * correction_buffer[i+1]) / b[i];
+    }
+}
+template <class T>
+void compute_correction_precomputed(T * correction_buffer, size_t n_nodal, const T * w, const T * b, T h, T * load_v_buffer){
+    size_t n = n_nodal;
+    // Thomas algorithm for solving M_l x = load_v
+    // forward pass
+    // simplified algorithm
+    T * d = load_v_buffer;
+    T c = 1.0/3;
+    for(int i=1; i<n; i++){
+        d[i] = d[i] - w[i] * d[i-1];
     }
     // backward pass
     correction_buffer[n-1] = d[n-1] / b[n-1];
@@ -279,9 +295,13 @@ void compute_correction(T * correction_buffer, size_t n_nodal, T h, T * load_v_b
 template <class T>
 void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, const T * coeff_buffer, size_t n1_nodal, size_t n1_coeff, size_t stride, T h, int batchsize){
     // T ah = h * 0.25; // derived constant in the formula
-    T ah = alpha * h;   // 1/12
-    T bh = beta * h;    // 1/2
-    T ch = gamma * h;   // 5/6
+    // T ah = alpha * h;   // 1/12
+    // T bh = beta * h;    // 1/2
+    // T ch = gamma * h;   // 5/6
+    // eliminate h for efficiency
+    T ah = alpha;   // 1/12
+    T bh = beta;    // 1/2
+    T ch = gamma;   // 5/6
     T const * nodal_pos = nodal_buffer;
     T const * coeff_pos = coeff_buffer;
     T * load_v_pos = load_v_buffer;
@@ -329,7 +349,9 @@ void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, con
 template <class T>
 void compute_correction_batched(T * correction_buffer, T h, const T * b, const T * w, size_t n_nodal, int batchsize, size_t correction_stride, T * load_v_buffer){
     size_t n = n_nodal;
-    T c = h/3;
+    // T c = h/3;
+    // eliminate h for effificiency
+    T c = 1.0/3;
     // Thomas algorithm for solving M_l x = load_v
     // forward pass
     // simplified algorithm
@@ -405,10 +427,15 @@ void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * ho
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
     size_t n2_coeff = n2 - n2_nodal;
-    vector<T> b(n1_nodal, h*4/3);
+    // vector<T> b(n1_nodal, h*4/3);
+    // vector<T> w(n1_nodal, 0);
+    // b[0] = h*2/3, b[n1_nodal - 1] = h*2/3;
+    // T c = h/3;
+    // eliminate h for effciency
+    vector<T> b(n1_nodal, 4.0/3);
     vector<T> w(n1_nodal, 0);
-    b[0] = h*2/3, b[n1_nodal - 1] = h*2/3;
-    T c = h/3;
+    b[0] = 2.0/3, b[n1_nodal - 1] = 2.0/3;
+    T c = 1.0/3;
     // pre-compute w and b
     for(int i=1; i<n1_nodal; i++){
         w[i] = c / b[i-1];
@@ -448,6 +475,16 @@ void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffe
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
     size_t n2_coeff = n2 - n2_nodal;
+    // eliminate h for effciency
+    vector<T> b(n2_nodal, 4.0/3);
+    vector<T> w(n2_nodal, 0);
+    b[0] = 2.0/3, b[n2_nodal - 1] = 2.0/3;
+    T c = 1.0/3;
+    // pre-compute w and b
+    for(int i=1; i<n2_nodal; i++){
+        w[i] = c / b[i-1];
+        b[i] = b[i] - w[i] * c;
+    }
     // compute horizontal correction
     T * nodal_pos = data_pos;
     const T * coeff_pos = data_pos + n2_nodal;
@@ -456,7 +493,7 @@ void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffe
     for(int i=0; i<n1; i++){
         if(i < nodal_rows) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
         else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
-        compute_correction(correction_pos, n2_nodal, h, load_v_buffer);
+        compute_correction_precomputed(correction_pos, n2_nodal, w.data(), b.data(), h, load_v_buffer);
         // subtract_correction(n2_nodal, nodal_pos);
         nodal_pos += stride, coeff_pos += stride;
         correction_pos += n2_nodal;
