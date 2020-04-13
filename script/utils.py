@@ -59,6 +59,18 @@ def plot_mgard_given_level_given_field(dataset, level, field):
 from os import system
 from os import listdir
 from os.path import getsize
+def run_mgard_decompose(folder, dims, level=20):
+    dataset_name = folder[folder.rfind('/') + 1:]
+    if dataset_name == 'step48':
+        dataset_name = 'Hurricane'
+    decompose_exec='/Users/xin/github/MGARD/build/test/test_compress'
+    data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
+    print(data_files)
+    for i in range(num_fields):
+        file = data_files[i]
+        filename = "{}/{}".format(folder, file)
+        system("{} {} 0 {} 3 {} {} {}".format(decompose_exec, filename, level, dims[0], dims[1], dims[2]))
+
 def run_mgard(folder, dims, level=20):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
