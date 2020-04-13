@@ -89,12 +89,12 @@ private:
                 n = (n >> 1) + 1;
             }
         }
-        for(int i=0; i<dims.size(); i++){
-            for(int j=0; j<=target_level; j++){
-                cerr << level_dims[i][j] << " ";
-            }
-            cerr << endl;
-        }
+        // for(int i=0; i<dims.size(); i++){
+        //     for(int j=0; j<=target_level; j++){
+        //         cerr << level_dims[i][j] << " ";
+        //     }
+        //     cerr << endl;
+        // }
     }
 
     void decoding_and_recover(const unsigned char * lossless_compressed, size_t lossless_length, const vector<size_t>& dims, size_t num_elements, size_t& target_level){
@@ -293,7 +293,13 @@ private:
         size_t n1_coeff = n1 - n1_nodal;
         size_t n2_nodal = (n2 >> 1) + 1;
         size_t n2_coeff = n2 - n2_nodal;
-		compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride);
+        vector<T> w1(n1_nodal);
+        vector<T> b1(n1_nodal);
+        vector<T> w2(n2_nodal);
+        vector<T> b2(n2_nodal);
+        precompute_w_and_b(w1.data(), b1.data(), n1_nodal);
+        precompute_w_and_b(w2.data(), b2.data(), n2_nodal);
+		compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride, w1.data(), b1.data(), w2.data(), b2.data(), default_batch_size);
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, false);
 		recover_from_interpolant_difference_2D(data_pos, n1, n2, stride);
 		data_reverse_reorder_2D(data_pos, n1, n2, stride);

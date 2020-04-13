@@ -308,7 +308,13 @@ private:
         size_t n2_coeff = n2 - n2_nodal;
 		data_reorder_2D(data_pos, n1, n2, stride);
 		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
-        compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride);
+        vector<T> w1(n1_nodal);
+        vector<T> b1(n1_nodal);
+        vector<T> w2(n2_nodal);
+        vector<T> b2(n2_nodal);
+        precompute_w_and_b(w1.data(), b1.data(), n1_nodal);
+        precompute_w_and_b(w2.data(), b2.data(), n2_nodal);
+        compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride, w1.data(), b1.data(), w2.data(), b2.data(), default_batch_size);
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
 	}
 	/*

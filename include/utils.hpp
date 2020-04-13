@@ -82,6 +82,20 @@ void print(T * data, size_t n1, size_t n2, string s){
     }
     cout << endl;
 }
+template <class T>
+void precompute_w_and_b(T * w, T * b, size_t n_nodal){
+    b[0] = 2.0/3, b[n_nodal - 1] = 2.0/3;
+    for(int i=1; i<n_nodal - 1; i++){
+        b[i] = 4.0/3;
+    }
+    T c = 1.0/3;
+    // pre-compute w and b
+    w[0] = 0;
+    for(int i=1; i<n_nodal; i++){
+        w[i] = c / b[i-1];
+        b[i] = b[i] - w[i] * c;
+    } 
+}
 // switch the rows in the data for coherent memory access
 /*
 @params data_pos: starting position of data
@@ -347,7 +361,7 @@ void compute_load_vector_vertical(T * load_v_buffer, const T * nodal_buffer, con
 @params load_v_buffer: buffer to store load vector
 */
 template <class T>
-void compute_correction_batched(T * correction_buffer, T h, const T * b, const T * w, size_t n_nodal, int batchsize, size_t correction_stride, T * load_v_buffer){
+void compute_correction_batched(T * correction_buffer, T h, const T * w, const T * b, size_t n_nodal, int batchsize, size_t correction_stride, T * load_v_buffer){
     size_t n = n_nodal;
     // T c = h/3;
     // eliminate h for effificiency
@@ -422,25 +436,11 @@ void apply_correction_batched(T * nodal_pos, const T * correction_buffer, int n_
 @params default_batch_size: batchsize of vertical correction computation
 */
 template <class T>
-void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * horizontal_correction, size_t stride, T * load_v_buffer, int default_batch_size=1){
+void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * horizontal_correction, size_t stride, T * load_v_buffer, const T * w, const T * b, int default_batch_size=1){
     size_t n1_nodal = (n1 >> 1) + 1;
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
     size_t n2_coeff = n2 - n2_nodal;
-    // vector<T> b(n1_nodal, h*4/3);
-    // vector<T> w(n1_nodal, 0);
-    // b[0] = h*2/3, b[n1_nodal - 1] = h*2/3;
-    // T c = h/3;
-    // eliminate h for effciency
-    vector<T> b(n1_nodal, 4.0/3);
-    vector<T> w(n1_nodal, 0);
-    b[0] = 2.0/3, b[n1_nodal - 1] = 2.0/3;
-    T c = 1.0/3;
-    // pre-compute w and b
-    for(int i=1; i<n1_nodal; i++){
-        w[i] = c / b[i-1];
-        b[i] = b[i] - w[i] * c;
-    }
     int batchsize = default_batch_size;
     int num_batches = (n2_nodal - 1) / batchsize;
     T * nodal_pos = horizontal_correction;
@@ -449,13 +449,13 @@ void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * ho
     T * data_nodal_pos = data_pos;
     for(int i=0; i<num_batches; i++){
         compute_load_vector_vertical(load_v_buffer, nodal_pos, coeff_pos, n1_nodal, n1_coeff, stride, h, batchsize);
-        compute_correction_batched(nodal_pos, h, b.data(), w.data(), n1_nodal, batchsize, stride, load_v_buffer);
+        compute_correction_batched(nodal_pos, h, w, b, n1_nodal, batchsize, stride, load_v_buffer);
         nodal_pos += batchsize, coeff_pos += batchsize, data_nodal_pos += batchsize;
     }
     if(n2_nodal - batchsize * num_batches > 0){
         batchsize = n2_nodal - batchsize * num_batches;
         compute_load_vector_vertical(load_v_buffer, nodal_pos, coeff_pos, n1_nodal, n1_coeff, stride, h, batchsize);
-        compute_correction_batched(nodal_pos, h, b.data(), w.data(), n1_nodal, batchsize, stride, load_v_buffer);
+        compute_correction_batched(nodal_pos, h, w, b, n1_nodal, batchsize, stride, load_v_buffer);
     }
 }
 // compute the corrections for 2D cases
@@ -470,21 +470,11 @@ void compute_correction_vertical(T * data_pos, size_t n1, size_t n2, T h, T * ho
 @params default_batch_size: batchsize of vertical correction computation
 */
 template <class T>
-void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffer, size_t n1, size_t n2, size_t nodal_rows, T h, size_t stride, int default_batch_size=1){
+void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffer, size_t n1, size_t n2, size_t nodal_rows, T h, size_t stride, const T * w1, const T * b1, const T * w2, const T * b2, int default_batch_size=1){
     size_t n1_nodal = (n1 >> 1) + 1;
     size_t n1_coeff = n1 - n1_nodal;
     size_t n2_nodal = (n2 >> 1) + 1;
     size_t n2_coeff = n2 - n2_nodal;
-    // eliminate h for effciency
-    vector<T> b(n2_nodal, 4.0/3);
-    vector<T> w(n2_nodal, 0);
-    b[0] = 2.0/3, b[n2_nodal - 1] = 2.0/3;
-    T c = 1.0/3;
-    // pre-compute w and b
-    for(int i=1; i<n2_nodal; i++){
-        w[i] = c / b[i-1];
-        b[i] = b[i] - w[i] * c;
-    }
     // compute horizontal correction
     T * nodal_pos = data_pos;
     const T * coeff_pos = data_pos + n2_nodal;
@@ -493,13 +483,13 @@ void compute_correction_2D(T * data_pos, T * correction_buffer, T * load_v_buffe
     for(int i=0; i<n1; i++){
         if(i < nodal_rows) compute_load_vector_nodal_row(load_v_buffer, n2_nodal, n2_coeff, h, coeff_pos);
         else  compute_load_vector_coeff_row(load_v_buffer, n2_nodal, n2_coeff, h, nodal_pos, coeff_pos);
-        compute_correction_precomputed(correction_pos, n2_nodal, w.data(), b.data(), h, load_v_buffer);
+        compute_correction_precomputed(correction_pos, n2_nodal, w2, b2, h, load_v_buffer);
         // subtract_correction(n2_nodal, nodal_pos);
         nodal_pos += stride, coeff_pos += stride;
         correction_pos += n2_nodal;
     }
     // compute vertical correction
-    compute_correction_vertical(data_pos, n1, n2, h, correction_buffer, n2_nodal, load_v_buffer, default_batch_size);
+    compute_correction_vertical(data_pos, n1, n2, h, correction_buffer, n2_nodal, load_v_buffer, w1, b1, default_batch_size);
 }
 // compute the corrections for 3D cases
 /*
@@ -520,13 +510,22 @@ void compute_correction_3D(T * data_pos, T * correction_buffer, T * load_v_buffe
     size_t n2_coeff = n2 - n2_nodal;
     size_t n3_nodal = (n3 >> 1) + 1;
     size_t n3_coeff = n3 - n3_nodal;
+    vector<T> w1(n1_nodal);
+    vector<T> b1(n1_nodal);
+    vector<T> w2(n2_nodal);
+    vector<T> b2(n2_nodal);
+    vector<T> w3(n3_nodal);
+    vector<T> b3(n3_nodal);
+    precompute_w_and_b(w1.data(), b1.data(), n1_nodal);
+    precompute_w_and_b(w2.data(), b2.data(), n2_nodal);
+    precompute_w_and_b(w3.data(), b3.data(), n3_nodal);
     // compute 2D corrections
     T * nodal_pos = data_pos;
     // store 2D corrections in the correction_buffer
     T * correction_pos = correction_buffer;
     for(int i=0; i<n1; i++){
         size_t nodal_rows = (i < n1_nodal) ? n2_nodal : 0;
-        compute_correction_2D(nodal_pos, correction_pos, load_v_buffer, n2, n3, nodal_rows, h, dim1_stride, default_batch_size);
+        compute_correction_2D(nodal_pos, correction_pos, load_v_buffer, n2, n3, nodal_rows, h, dim1_stride, w2.data(), b2.data(), w3.data(), b3.data(), default_batch_size);
         nodal_pos += dim0_stride;
         correction_pos += n2_nodal * n3_nodal;
     }        
@@ -534,7 +533,7 @@ void compute_correction_3D(T * data_pos, T * correction_buffer, T * load_v_buffe
     correction_pos = correction_buffer;
     nodal_pos = data_pos;
     for(int i=0; i<n2_nodal; i++){
-        compute_correction_vertical(data_pos, n1, n3, h, correction_pos, n2_nodal * n3_nodal, load_v_buffer, default_batch_size);
+        compute_correction_vertical(data_pos, n1, n3, h, correction_pos, n2_nodal * n3_nodal, load_v_buffer, w1.data(), b1.data(), default_batch_size);
         nodal_pos += dim1_stride;
         correction_pos += n3_nodal;
     }
