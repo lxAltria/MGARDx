@@ -110,13 +110,15 @@ private:
         size_t n2_nodal = level_dims[1][0];
         size_t n3_nodal = level_dims[2][0];
         T * sz_dec = NULL;
+        size_t quant_elements = num_elements;
         if(use_sz){
             // recover sz compressed
             size_t sz_compressed_size = *reinterpret_cast<const size_t*>(compressed_data_pos);
             compressed_data_pos += sizeof(size_t);
-            cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
+            // cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
             sz_dec = sz_decompress_3d<T>(compressed_data_pos, n1_nodal, n2_nodal, n3_nodal);
             compressed_data_pos += sz_compressed_size;
+            quant_elements = num_elements - n1_nodal * n2_nodal * n3_nodal;
         }
         // recover mgard
         auto quantizer = SZ::LinearQuantizer<T>(1);
@@ -124,7 +126,7 @@ private:
         size_t remaining_length = compressed_length;
         quantizer.load(compressed_data_pos, remaining_length);
         encoder.load(compressed_data_pos, remaining_length);
-        auto quant_inds = encoder.decode(compressed_data_pos, num_elements);
+        auto quant_inds = encoder.decode(compressed_data_pos, quant_elements);
         encoder.postprocess_decode();
         if(use_sz){
             size_t count = 0;
