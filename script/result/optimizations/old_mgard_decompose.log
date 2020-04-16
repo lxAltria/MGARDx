@@ -1,0 +1,196 @@
+Start decomposition
+Decomposition time = 69.6553s
+Compression time = 74.2228s
+Start recomposition
+Recomposition time = 79.141s
+Decompression time = 80.5955s
+Start decomposition
+Decomposition time = 78.0569s
+Compression time = 82.6656s
+Start recomposition
+Recomposition time = 83.7187s
+Decompression time = 85.1738s
+Start decomposition
+Decomposition time = 74.2045s
+Compression time = 78.9113s
+Start recomposition
+Recomposition time = 78.8918s
+Decompression time = 80.342s
+Start decomposition
+Decomposition time = 69.9707s
+Compression time = 75.6984s
+Start recomposition
+Recomposition time = 79.4861s
+Decompression time = 80.9322s
+Start decomposition
+Decomposition time = 70.091s
+Compression time = 75.3032s
+Start recomposition
+Recomposition time = 83.0642s
+Decompression time = 84.5139s
+Start decomposition
+Decomposition time = 70.625s
+Compression time = 76.6787s
+Start recomposition
+Recomposition time = 79.7218s
+Decompression time = 81.1648s
+Start decomposition
+Decomposition time = 9.14069s
+Compression time = 12.1315s
+Start recomposition
+Recomposition time = 10.1134s
+Decompression time = 10.3725s
+Start decomposition
+Decomposition time = 8.87545s
+Compression time = 10.1404s
+Start recomposition
+Recomposition time = 10.0626s
+Decompression time = 10.3306s
+Start decomposition
+Decomposition time = 8.87201s
+Compression time = 9.96734s
+Start recomposition
+Recomposition time = 9.94682s
+Decompression time = 10.217s
+Start decomposition
+Decomposition time = 9.17732s
+Compression time = 12.0755s
+Start recomposition
+Recomposition time = 10.2404s
+Decompression time = 10.501s
+Start decomposition
+Decomposition time = 8.97714s
+Compression time = 9.91421s
+Start recomposition
+Recomposition time = 9.92334s
+Decompression time = 10.1942s
+Start decomposition
+Decomposition time = 9.19969s
+Compression time = 10.5099s
+Start recomposition
+Recomposition time = 10.0258s
+Decompression time = 10.2933s
+Start decomposition
+Decomposition time = 8.88646s
+Compression time = 10.155s
+Start recomposition
+Recomposition time = 10.0913s
+Decompression time = 10.3602s
+Start decomposition
+Decomposition time = 8.89655s
+Compression time = 10.119s
+Start recomposition
+Recomposition time = 10.0327s
+Decompression time = 10.3007s
+Start decomposition
+Decomposition time = 8.94692s
+Compression time = 11.1144s
+Start recomposition
+Recomposition time = 10.1417s
+Decompression time = 10.4052s
+Start decomposition
+Decomposition time = 8.87999s
+Compression time = 9.94683s
+Start recomposition
+Recomposition time = 9.92082s
+Decompression time = 10.1906s
+Start decomposition
+Decomposition time = 8.88995s
+Compression time = 10.3903s
+Start recomposition
+Recomposition time = 9.97584s
+Decompression time = 10.242s
+Start decomposition
+Decomposition time = 8.87542s
+Compression time = 10.5082s
+Start recomposition
+Recomposition time = 9.93497s
+Decompression time = 10.2011s
+Start decomposition
+Decomposition time = 8.86543s
+Compression time = 10.368s
+Start recomposition
+Recomposition time = 10.0893s
+Decompression time = 10.3552s
+Start decomposition
+Decomposition time = 93.8368s
+Compression time = 98.6624s
+Start recomposition
+Recomposition time = 98.4776s
+Decompression time = 100.008s
+Start decomposition
+Decomposition time = 94.9715s
+Compression time = 100.648s
+Start recomposition
+Recomposition time = 99.88s
+Decompression time = 101.405s
+Start decomposition
+Decomposition time = 94.3948s
+Compression time = 99.3518s
+Start recomposition
+Recomposition time = 99.4934s
+Decompression time = 101.023s
+Start decomposition
+Decomposition time = 94.7528s
+Compression time = 99.8206s
+Start recomposition
+Recomposition time = 99.4163s
+Decompression time = 100.944s
+Start decomposition
+Decomposition time = 93.9445s
+Compression time = 98.9147s
+Start recomposition
+Recomposition time = 99.2382s
+Decompression time = 100.767s
+Start decomposition
+Decomposition time = 94.2104s
+Compression time = 100.366s
+Start recomposition
+Recomposition time = 99.4859s
+Decompression time = 101.009s
+Start decomposition
+Decomposition time = 94.1851s
+Compression time = 101.07s
+Start recomposition
+Recomposition time = 99.6501s
+Decompression time = 101.166s
+Start decomposition
+Decomposition time = 94.448s
+Compression time = 104.905s
+Start recomposition
+Recomposition time = 99.3409s
+Decompression time = 100.835s
+Start decomposition
+Decomposition time = 94.2685s
+Compression time = 99.0968s
+Start recomposition
+Recomposition time = 99.0583s
+Decompression time = 100.631s
+Start decomposition
+Decomposition time = 94.2321s
+Compression time = 101.381s
+Start recomposition
+Recomposition time = 99.4481s
+Decompression time = 100.965s
+Start decomposition
+Decomposition time = 93.9823s
+Compression time = 102.499s
+Start recomposition
+Recomposition time = 99.7983s
+Decompression time = 101.301s
+Start decomposition
+Decomposition time = 94.6924s
+Compression time = 100.355s
+Start recomposition
+Recomposition time = 99.6471s
+Decompression time = 101.172s
+Start decomposition
+Decomposition time = 211.439s
+Compression time = 219.049s
+Start recomposition
+Recomposition time = 237.196s
+Decompression time = 238.887s
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
+['PRES-98x1200x1200.dat', 'QC-98x1200x1200.dat', 'QG-98x1200x1200.dat', 'QI-98x1200x1200.dat', 'QR-98x1200x1200.dat', 'QS-98x1200x1200.dat', 'QV-98x1200x1200.dat', 'RH-98x1200x1200.dat', 'T-98x1200x1200.dat', 'U-98x1200x1200.dat', 'V-98x1200x1200.dat', 'W-98x1200x1200.dat']
+['288x115x69x69.f32.qmc.dat']
