@@ -1,10 +1,3 @@
-find_library(ZSTD_LIB zstd HINTS "/Users/xin/utils/sz_master/lib/")
-find_library(SZ3_LIB SZ3 HINTS "/Users/xin/github/SZ_refactory/install/lib")
-find_library(SZ_CPP_LIB sz_cpp HINTS "/Users/xin/github/meta_compressor/build/lib")
-set (ZSTD_INC "/Users/xin/utils/sz_master/include")
-set (SZ3_INC "/Users/xin/github/SZ_refactory/include")
-set (SZ_CPP_INC "/Users/xin/github/meta_compressor/build/include")
-
 add_executable (test_decompose test_decompose.cpp)
 target_include_directories(test_decompose PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(test_decompose PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
@@ -19,3 +12,4 @@ add_executable (test_decompress test_decompress.cpp)
 target_include_directories(test_decompress PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(test_decompress PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
 target_link_libraries(test_decompress ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+

@@ -5,5 +5,12 @@ set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 set (CMAKE_CXX_FLAGS "-g -O3")
 
-add_subdirectory (test)
+find_library(ZSTD_LIB zstd HINTS "/ccs/home/jieyang/xin/codes/SZ/build/zstd")
+find_library(SZ3_LIB SZ3 HINTS "/ccs/home/jieyang/xin/codes/sz_refactory/build/src")
+find_library(SZ_CPP_LIB sz_cpp HINTS "/ccs/home/jieyang/xin/codes/meta_compressor/build/lib")
+set (ZSTD_INC "/ccs/home/jieyang/xin/codes/SZ/zstd")
+set (SZ3_INC "/ccs/home/jieyang/xin/codes/sz_refactory/include")
+set (SZ_CPP_INC "/ccs/home/jieyang/xin/codes/meta_compressor/build/include")
 
+add_subdirectory (test)
+add_subdirectory (parallel_src)
