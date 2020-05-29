@@ -28,33 +28,15 @@ def denormalize(data, min_data, value_range):
 	data = data * value_range + min_data
 	return data
 
-def load_rate_distorition(dataset, compressor):
+def load_rate_distortion(dataset, compressor):
     nrmse = np.loadtxt("result/{}_{}_nrmse.txt".format(dataset, compressor))
     ratio = np.loadtxt("result/{}_{}_ratio.txt".format(dataset, compressor))
     return get_total_rate_distortion(nrmse, ratio)
 
-def load_rate_distorition_given_field(dataset, compressor, field):
+def load_rate_distortion_given_field(dataset, compressor, field):
     psnr = np.loadtxt("result/{}_{}_psnr.txt".format(dataset, compressor))[field]
     ratio = np.loadtxt("result/{}_{}_ratio.txt".format(dataset, compressor))[field]
     return 32.0/ratio, psnr
-
-from matplotlib import pyplot as plt
-def plot_rate_distortion(dataset, compressor):
-    br, psnr = load_rate_distorition(dataset, compressor)
-    plt.plot(br, psnr, label='{}'.format(compressor))
-
-def plot_mgard_all_levels(dataset, levels):
-    for i in range(levels):
-        br, psnr = load_rate_distorition(dataset, 'mgard_level{}'.format(i+1))
-        plt.plot(br, psnr, label='level{}'.format(i+1))
-
-def plot_mgard_given_level(dataset, level):
-    br, psnr = load_rate_distorition(dataset, 'mgard_level{}'.format(level))
-    plt.plot(br, psnr, label='level{}'.format(level))
-
-def plot_mgard_given_level_given_field(dataset, level, field):
-    br, psnr = load_rate_distorition_given_field(dataset, 'mgard_level{}'.format(level), field)
-    plt.plot(br, psnr, label='level{}'.format(level))
 
 from os import system
 from os import listdir
@@ -71,7 +53,7 @@ def run_mgard_decompose(folder, dims, level=20):
         filename = "{}/{}".format(folder, file)
         system("{} {} 0 {} 3 {} {} {}".format(decompose_exec, filename, level, dims[0], dims[1], dims[2]))
 
-def run_mgard(folder, dims, level=20):
+def run_mgard(folder, dims, eb, level=1):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
@@ -79,7 +61,8 @@ def run_mgard(folder, dims, level=20):
     decomp_exec='/Users/xin/github/MGARD/build/test/test_decompress'
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
-    ebs = np.array([1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
+    # ebs = np.array([1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
+    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -99,21 +82,22 @@ def run_mgard(folder, dims, level=20):
             dec_data = np.fromfile(filename_decomp, dtype=np.float32)
             psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
             ratio[i, j] = getsize(filename) * 1.0 / getsize(filename_comp)
-    np.savetxt("result/{}_mgard_level{}_psnr.txt".format(dataset_name, level), psnr)
-    np.savetxt("result/{}_mgard_level{}_nrmse.txt".format(dataset_name, level), nrmse)
-    np.savetxt("result/{}_mgard_level{}_ratio.txt".format(dataset_name, level), ratio)
+    # np.savetxt("result/{}_mgard_level{}_psnr.txt".format(dataset_name, level), psnr)
+    # np.savetxt("result/{}_mgard_level{}_nrmse.txt".format(dataset_name, level), nrmse)
+    # np.savetxt("result/{}_mgard_level{}_ratio.txt".format(dataset_name, level), ratio)
     br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
     print(br_overall)
     print(psnr_overall)
 
-def run_zfp(folder, dims):
+def run_zfp(folder, dims, eb):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
     comp_exec='/Users/xin/github/zfp/bin/zfp'
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
-    ebs = np.array([2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005])
+    # ebs = np.array([2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005])
+    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -132,21 +116,22 @@ def run_zfp(folder, dims):
             dec_data = np.fromfile(filename_decomp, dtype=np.float32)
             psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
             ratio[i, j] = getsize(filename) * 1.0 / getsize(filename_comp)
-    np.savetxt("result/{}_zfp_psnr.txt".format(dataset_name), psnr)
-    np.savetxt("result/{}_zfp_nrmse.txt".format(dataset_name), nrmse)
-    np.savetxt("result/{}_zfp_ratio.txt".format(dataset_name), ratio)
+    # np.savetxt("result/{}_zfp_psnr.txt".format(dataset_name), psnr)
+    # np.savetxt("result/{}_zfp_nrmse.txt".format(dataset_name), nrmse)
+    # np.savetxt("result/{}_zfp_ratio.txt".format(dataset_name), ratio)
     br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
     print(br_overall)
     print(psnr_overall)
 
-def run_sz(folder, dims):
+def run_sz(folder, dims, eb):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
     comp_exec='/Users/xin/utils/sz_master/bin/sz'
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
-    ebs = np.array([0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005])
+    # ebs = np.array([0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005])
+    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -166,9 +151,9 @@ def run_sz(folder, dims):
             dec_data = np.fromfile(filename_decomp, dtype=np.float32)
             psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
             ratio[i, j] = getsize(filename) * 1.0 / getsize(filename_comp)
-    np.savetxt("result/{}_sz_psnr.txt".format(dataset_name), psnr)
-    np.savetxt("result/{}_sz_nrmse.txt".format(dataset_name), nrmse)
-    np.savetxt("result/{}_sz_ratio.txt".format(dataset_name), ratio)
+    # np.savetxt("result/{}_sz_psnr.txt".format(dataset_name), psnr)
+    # np.savetxt("result/{}_sz_nrmse.txt".format(dataset_name), nrmse)
+    # np.savetxt("result/{}_sz_ratio.txt".format(dataset_name), ratio)
     br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
     print(br_overall)
     print(psnr_overall)

@@ -1,0 +1,49 @@
+Start decomposition
+Decomposition time = 93.8368s
+Start recomposition
+Recomposition time = 98.4776s
+Start decomposition
+Decomposition time = 94.9715s
+Start recomposition
+Recomposition time = 99.88s
+Start decomposition
+Decomposition time = 94.3948s
+Start recomposition
+Recomposition time = 99.4934s
+Start decomposition
+Decomposition time = 94.7528s
+Start recomposition
+Recomposition time = 99.4163s
+Start decomposition
+Decomposition time = 93.9445s
+Start recomposition
+Recomposition time = 99.2382s
+Start decomposition
+Decomposition time = 94.2104s
+Start recomposition
+Recomposition time = 99.4859s
+Start decomposition
+Decomposition time = 94.1851s
+Start recomposition
+Recomposition time = 99.6501s
+Start decomposition
+Decomposition time = 94.448s
+Start recomposition
+Recomposition time = 99.3409s
+Start decomposition
+Decomposition time = 94.2685s
+Start recomposition
+Recomposition time = 99.0583s
+Start decomposition
+Decomposition time = 94.2321s
+Start recomposition
+Recomposition time = 99.4481s
+Start decomposition
+Decomposition time = 93.9823s
+Start recomposition
+Recomposition time = 99.7983s
+Start decomposition
+Decomposition time = 94.6924s
+Start recomposition
+Recomposition time = 99.6471s
+
