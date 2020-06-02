@@ -4,7 +4,6 @@
 #include <vector>
 #include <iomanip>
 #include <cmath>
-#include "decompose.hpp"
 #include "recompose.hpp"
 
 using namespace std;

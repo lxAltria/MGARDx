@@ -29,7 +29,7 @@ public:
 		for(const auto& d:dims){
 			num_elements *= d;
 		}
-        writefile(string("decomposed.dat").c_str(), data, num_elements);
+        // writefile(string("decomposed.dat").c_str(), data, num_elements);
 		auto result = quantize_and_encoding(dims, num_elements, dims.size(), eb, target_level, compressed_size);
 		return result;
 	}

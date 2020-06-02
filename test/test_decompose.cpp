@@ -28,7 +28,7 @@ void test_recompose(vector<T>& data, const vector<size_t>& dims, int target_leve
     MGARD::Recomposer<T> recomposer;
     recomposer.recompose(data.data(), dims, target_level);
     err = clock_gettime(CLOCK_REALTIME, &end);
-    cerr << "Recomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+    cout << "Recomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
 }
 
 template <class T>

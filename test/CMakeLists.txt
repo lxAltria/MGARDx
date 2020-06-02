@@ -13,3 +13,7 @@ target_include_directories(test_decompress PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(test_decompress PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
 target_link_libraries(test_decompress ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
 
+add_executable (test_refactor test_refactor.cpp)
+target_include_directories(test_refactor PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_refactor PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_refactor ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})

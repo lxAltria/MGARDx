@@ -66,6 +66,22 @@ std::vector<Type> readfile(const char *file, size_t &num) {
     return data;
 }
 template<typename Type>
+Type * readfile_pointer(const char *file, size_t &num) {
+    std::ifstream fin(file, std::ios::binary);
+    if (!fin) {
+        std::cout << " Error, Couldn't find the file" << "\n";
+        return NULL;
+    }
+    fin.seekg(0, std::ios::end);
+    const size_t num_elements = fin.tellg() / sizeof(Type);
+    fin.seekg(0, std::ios::beg);
+    Type * data = (Type *) malloc(num_elements * sizeof(Type));
+    fin.read(reinterpret_cast<char *>(data), num_elements * sizeof(Type));
+    fin.close();
+    num = num_elements;
+    return data;
+}
+template<typename Type>
 void writefile(const char *file, Type *data, size_t num_elements) {
     std::ofstream fout(file, std::ios::binary);
     fout.write(reinterpret_cast<const char *>(&data[0]), num_elements * sizeof(Type));
@@ -82,6 +98,38 @@ void print(T * data, size_t n1, size_t n2, string s){
     }
     cout << endl;
 }
+// compute dimensions for each level
+/*
+@params dims: dimensions
+@params target_level: number of levels to perform
+*/
+vector<vector<size_t>> init_levels(const vector<size_t>& dims, size_t target_level){
+    vector<vector<size_t>> level_dims;
+    // compute n_nodal in each level
+    for(int i=0; i<=target_level; i++){
+        level_dims.push_back(vector<size_t>(dims.size()));
+    }
+    for(int i=0; i<dims.size(); i++){
+        int n = dims[i];
+        for(int j=0; j<=target_level; j++){
+            level_dims[target_level - j][i] = n;
+            n = (n >> 1) + 1;
+        }
+    }
+    // for(int i=0; i<dims.size(); i++){
+    //     for(int j=0; j<=target_level; j++){
+    //         cout << level_dims[j][i] << " ";
+    //     }
+    //     cout << endl;
+    // }
+    return level_dims;
+}
+// precompute w and b for Thomas algorithm
+/*
+@params w: intermediate array w
+@params b: modified diagonal array b
+@params n_nodal: number of nodal values
+*/
 template <class T>
 void precompute_w_and_b(T * w, T * b, size_t n_nodal){
     b[0] = 2.0/3, b[n_nodal - 1] = 2.0/3;
