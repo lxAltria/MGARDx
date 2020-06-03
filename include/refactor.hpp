@@ -78,6 +78,15 @@ vector<unsigned char*> level_centric_data_refactor(const T * data, int target_le
         level_elements[i] = num_elements - pre_num_elements;
         pre_num_elements = num_elements;
     }
+    // optionally compute value range
+    T max_val = data[0];
+    T min_val = data[0];
+    for(int i=1; i<pre_num_elements; i++){
+        if(data[i] > max_val) max_val = data[i];
+        if(data[i] < min_val) min_val = data[i];
+    }
+    T value_range = max_val - min_val;
+    //
     vector<unsigned char *> level_components;
     level_components.push_back(metadata);
     vector<size_t> dims_dummy(dims.size(), 0);
@@ -89,6 +98,10 @@ vector<unsigned char*> level_centric_data_refactor(const T * data, int target_le
         unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
         interleave_level_coefficients(data, dims, level_dims[i], level_dims[i - 1], reinterpret_cast<T*>(buffer), level_error_bounds[i]);
         level_components.push_back(buffer);
+    }
+    // normalize error to value range
+    for(int i=0; i<=target_level; i++){
+        level_error_bounds[i] /= value_range;
     }
     return level_components;
 }
