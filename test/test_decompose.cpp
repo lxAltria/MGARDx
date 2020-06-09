@@ -59,6 +59,16 @@ void print_statistics(const T * data_ori, const T * data_dec, size_t data_size){
     cout << "MSE = " << mse << ", PSNR = " << psnr << endl;
 }
 
+template <class T>
+void test(string filename, const vector<size_t>& dims, int target_level){
+    size_t num_elements = 0;
+    auto data = MGARD::readfile<T>(filename.c_str(), num_elements);
+    auto data_ori(data);
+    test_decompose(data, dims, target_level);
+    test_recompose(data, dims, target_level);
+    print_statistics(data_ori.data(), data.data(), num_elements);
+}
+
 int main(int argc, char ** argv){
     string filename = string(argv[1]);
     int type = atoi(argv[2]); // 0 for float, 1 for double
@@ -70,24 +80,15 @@ int main(int argc, char ** argv){
        cout << dims[i] << " ";
     }
     cout << endl;
-    size_t num_elements = 0;
     switch(type){
         case 0:
             {
-                auto data = MGARD::readfile<float>(filename.c_str(), num_elements);
-                auto data_ori(data);
-                test_decompose(data, dims, target_level);
-                test_recompose(data, dims, target_level);
-                print_statistics(data_ori.data(), data.data(), num_elements);
+                test<float>(filename, dims, target_level);
                 break;
             }
         case 1:
             {
-                auto data = MGARD::readfile<double>(filename.c_str(), num_elements);
-                auto data_ori(data);
-                test_decompose(data, dims, target_level);
-                test_recompose(data, dims, target_level);
-                print_statistics(data_ori.data(), data.data(), num_elements);
+                test<double>(filename, dims, target_level);
                 break;
             }
         default:

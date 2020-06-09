@@ -42,8 +42,9 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     }
     free(components[0]);
 }
+
 template <class T>
-T * test_reposition(const vector<size_t>& dims, int target_recompose_level){
+T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vector<size_t>& recompose_dims){
     vector<unsigned char*> components;
     size_t tmp_size = 0;
     auto metadata = MGARD::readfile_pointer<unsigned char>(string("refactor.metadata").c_str(), tmp_size);
@@ -59,7 +60,6 @@ T * test_reposition(const vector<size_t>& dims, int target_recompose_level){
     struct timespec start, end;
     int err = 0;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    auto recompose_dims(dims);
     T * data = MGARD::level_centric_data_reposition<T>(components, target_level, target_recompose_level, recompose_dims);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Reposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
@@ -82,6 +82,110 @@ T * test_reposition(const vector<size_t>& dims, int target_recompose_level){
     return data;
 }
 
+template <class T>
+void print_statistics(const T * data_ori, const T * data_dec, size_t data_size){
+    double max_val = data_ori[0];
+    double min_val = data_ori[0];
+    double max_abs = fabs(data_ori[0]);
+    for(int i=0; i<data_size; i++){
+        if(data_ori[i] > max_val) max_val = data_ori[i];
+        if(data_ori[i] < min_val) min_val = data_ori[i];
+        if(fabs(data_ori[i]) > max_abs) max_abs = fabs(data_ori[i]);
+    }
+    double max_err = 0;
+    int pos = 0;
+    double mse = 0;
+    for(int i=0; i<data_size; i++){
+        double err = data_ori[i] - data_dec[i];
+        mse += err * err;
+        if(fabs(err) > max_err){
+            pos = i;
+            max_err = fabs(err);
+        }
+    }
+    mse /= data_size;
+    double psnr = 20 * log10((max_val - min_val) / sqrt(mse));
+    cout << "Max value = " << max_val << ", min value = " << min_val << endl;
+    cout << "Max error = " << max_err << ", pos = " << pos << endl;
+    cout << "MSE = " << mse << ", PSNR = " << psnr << endl;
+}
+
+// place level-centric data to original data dimensions
+template <class T>
+void put_back_data_1d(const T * data, const vector<size_t>& dims, T * full_data, const vector<size_t>& full_dims){
+    memcpy(full_data, data, dims[0] * sizeof(T));
+}
+template <class T>
+void put_back_data_2d(const T * data, const vector<size_t>& dims, T * full_data, const vector<size_t>& full_dims){
+    const T * data_pos = data;
+    T * full_data_pos = full_data;
+    for(int i=0; i<dims[0]; i++){
+        memcpy(full_data_pos, data_pos, dims[1] * sizeof(T));
+        data_pos += dims[1];
+        full_data_pos += full_dims[1];
+    }
+}
+template <class T>
+void put_back_data_3d(const T * data, const vector<size_t>& dims, T * full_data, const vector<size_t>& full_dims){
+    const T * data_pos = data;
+    T * full_data_pos = full_data;
+    for(int i=0; i<dims[0]; i++){
+        const T * row_data_pos = data_pos;
+        T * row_full_data_pos = full_data_pos;
+        for(int j=0; j<dims[1]; j++){
+            memcpy(row_full_data_pos, row_data_pos, dims[2] * sizeof(T));
+            row_data_pos += dims[2];
+            row_full_data_pos += full_dims[2];
+        }
+        data_pos += dims[1] * dims[2];
+        full_data_pos += full_dims[1] * full_dims[2];
+    }
+}
+
+template <class T>
+void test(string filename, const vector<size_t>& dims, int target_level, int target_recompose_level){
+    size_t num_elements;
+    auto data = MGARD::readfile<T>(filename.c_str(), num_elements);
+    auto data_ori(data);
+    test_refactor(data, dims, target_level);
+    vector<size_t> recompose_dims(dims);
+    auto data_recomp = test_reposition<T>(dims, target_recompose_level, recompose_dims);
+    // 0 is the finest level in recomposition
+    if(target_recompose_level != 0){
+        T * data_recomp_full = (T *) malloc(num_elements * sizeof(T));
+        memset(data_recomp_full, 0, num_elements * sizeof(T));
+        switch(dims.size()){
+            case 1:
+                {
+                    put_back_data_1d(data_recomp, recompose_dims, data_recomp_full, dims);
+                    break;
+                }
+            case 2:
+                {
+                    put_back_data_2d(data_recomp, recompose_dims, data_recomp_full, dims);
+                    break;
+                }
+            case 3:
+                {
+                    put_back_data_3d(data_recomp, recompose_dims, data_recomp_full, dims);
+                    break;
+                }
+            default:
+                cerr << "Only 3 dimensions are supported in this test\n";
+                exit(0);                
+        }
+        // recompose data to the original dimension
+        MGARD::Recomposer<T> recomposer;
+        recomposer.recompose_with_hierarchical_basis(data_recomp_full, dims, target_recompose_level);
+        print_statistics(data_ori.data(), data_recomp_full, num_elements);
+        free(data_recomp_full);
+    }
+    else{
+        print_statistics(data_ori.data(), data_recomp, num_elements);
+    }
+    free(data_recomp);
+}
+
 int main(int argc, char ** argv){
     string filename = string(argv[1]);
     int type = atoi(argv[2]); // 0 for float, 1 for double
@@ -95,22 +199,15 @@ int main(int argc, char ** argv){
        cout << dims[i] << " ";
     }
     cout << endl;
-    size_t num_elements = 0;
     switch(type){
         case 0:
             {
-                auto data = MGARD::readfile<float>(filename.c_str(), num_elements);
-                test_refactor(data, dims, target_level);
-                auto data_recomp = test_reposition<float>(dims, target_recompose_level);
-                free(data_recomp);
+                test<float>(filename, dims, target_level, target_recompose_level);
                 break;
             }
         case 1:
             {
-                auto data = MGARD::readfile<double>(filename.c_str(), num_elements);
-                test_refactor(data, dims, target_level);
-                auto data_recomp = test_reposition<double>(dims, target_recompose_level);
-                free(data_recomp);
+                test<double>(filename, dims, target_level, target_recompose_level);
                 break;
             }
         default:

@@ -70,6 +70,42 @@ public:
             }
         }
 	}
+    void recompose_with_hierarchical_basis(T * data_, const vector<size_t>& dims, size_t target_level){
+        data = data_;
+        size_t num_elements = 1;
+        for(const auto& d:dims){
+            num_elements *= d;
+        }
+        data_buffer_size = num_elements * sizeof(T);
+        init(dims);
+        if(level_dims.empty()){
+            level_dims = init_levels(dims, target_level);
+        }
+        size_t h = 1 << (target_level - 1);
+        if(dims.size() == 1){
+            for(int i=0; i<target_level; i++){
+                recompose_level_1D_hierarhical_basis(data, level_dims[i+1][0], h);
+                h >>= 1;
+            }
+        }
+        else if(dims.size() == 2){
+            for(int i=0; i<target_level; i++){
+                size_t n1 = level_dims[i+1][0];
+                size_t n2 = level_dims[i+1][1];
+                recompose_level_2D_hierarhical_basis(data, n1, n2, (T)h, dims[1]);
+                h >>= 1;
+            }
+        }
+        else if(dims.size() == 3){
+            for(int i=0; i<target_level; i++){
+                size_t n1 = level_dims[i+1][0];
+                size_t n2 = level_dims[i+1][1];
+                size_t n3 = level_dims[i+1][2];
+                recompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+                h >>= 1;
+            }
+        }
+    }
 private:
 	unsigned int default_batch_size = 32;
 	size_t data_buffer_size = 0;
@@ -171,8 +207,7 @@ private:
 			nodal_buffer[i] -= correction_buffer[i];
 		}
 	}
-	// recompose a level with n element and the given stride
-	// from a level with n/2 element
+    // recompose n/2 data into finer level (n) with hierarchical basis (pure interpolation)
 	void recompose_level_1D(T * data_pos, size_t n, T h, bool nodal_row=true){
 		cerr << n << endl;
 		size_t n_nodal = (n >> 1) + 1;
@@ -187,6 +222,17 @@ private:
 		recover_from_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
 		data_reverse_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
 	}
+    // recompose n/2 data into finer level (n) with hierarchical basis (pure interpolation)
+    void recompose_level_1D_hierarhical_basis(T * data_pos, size_t n, T h, bool nodal_row=true){
+        cerr << n << endl;
+        size_t n_nodal = (n >> 1) + 1;
+        size_t n_coeff = n - n_nodal;
+        memcpy(data_buffer, data_pos, n*sizeof(T));
+        T * nodal_buffer = data_buffer;
+        T * coeff_buffer = data_buffer + n_nodal;
+        recover_from_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
+        data_reverse_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
+    }
 	/* 
 		2D recomposition
 	*/
@@ -270,7 +316,7 @@ private:
 		// compute vertical difference
 		recover_from_interpolant_difference_2D_vertical(data_pos, n1, n2, stride);
 	}	
-	// recompose n1/2 x n2/2 data into fine level (n1 x n2)
+	// recompose n1/2 x n2/2 data into finer level (n1 x n2)
 	void recompose_level_2D(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
 		// cerr << "recompose, h = " << h << endl; 
         size_t n1_nodal = (n1 >> 1) + 1;
@@ -288,6 +334,16 @@ private:
 		recover_from_interpolant_difference_2D(data_pos, n1, n2, stride);
 		data_reverse_reorder_2D(data_pos, n1, n2, stride);
 	}
+    // recompose n1/2 x n2/2 data into finer level (n1 x n2) with hierarchical basis (pure interpolation)
+    void recompose_level_2D_hierarhical_basis(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+        // cerr << "recompose, h = " << h << endl; 
+        size_t n1_nodal = (n1 >> 1) + 1;
+        size_t n1_coeff = n1 - n1_nodal;
+        size_t n2_nodal = (n2 >> 1) + 1;
+        size_t n2_coeff = n2 - n2_nodal;
+        recover_from_interpolant_difference_2D(data_pos, n1, n2, stride);
+        data_reverse_reorder_2D(data_pos, n1, n2, stride);
+    }
     /*
         vertical reorder + 2D reorder
     */
@@ -423,7 +479,7 @@ private:
             coeff_pos += dim0_stride;
         }
     }    
-    // recompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
+    // recompse n1/2 x n2/2 x n3/2 data into finer level (n1 x n2 x n3)
     void recompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
         size_t n1_nodal = (n1 >> 1) + 1;
         size_t n2_nodal = (n2 >> 1) + 1;
@@ -436,6 +492,14 @@ private:
             nodal_pos += dim0_stride;
             correction_pos += n2_nodal * n3_nodal;
         }
+        recover_from_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+        data_reverse_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+    }
+    // recompse n1/2 x n2/2 x n3/2 data into finer level (n1 x n2 x n3) with hierarchical basis (pure interpolation)
+    void recompose_level_3D_hierarchical_basis(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+        size_t n1_nodal = (n1 >> 1) + 1;
+        size_t n2_nodal = (n2 >> 1) + 1;
+        size_t n3_nodal = (n3 >> 1) + 1;
         recover_from_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
         data_reverse_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
     }

@@ -49,6 +49,18 @@ void print_statistics(const T * data_ori, const T * data_dec, size_t data_size, 
     cout << "Compression ratio = " << data_size * sizeof(T) * 1.0 / compressed_size << endl;
 }
 
+template <class T>
+void test(string ori_filename, string compressed_filename, const vector<size_t>& dims){
+    size_t num_elements = 0;
+    size_t compressed_size = 0;
+    auto compressed = MGARD::readfile<unsigned char>(compressed_filename.c_str(), compressed_size);
+    auto data_ori = MGARD::readfile<float>(ori_filename.c_str(), num_elements);
+    auto data_dec = test_decompress<float>(compressed.data(), compressed_size, dims);
+    print_statistics(data_ori.data(), data_dec, num_elements, compressed_size);
+    MGARD::writefile((compressed_filename + ".out").c_str(), data_dec, num_elements);
+    free(data_dec);    
+}
+
 int main(int argc, char ** argv){
     string ori_filename = string(argv[1]);
     string compressed_filename = string(argv[2]);
@@ -60,26 +72,15 @@ int main(int argc, char ** argv){
        cout << dims[i] << " ";
     }
     cout << endl;
-    size_t num_elements = 0;
-    size_t compressed_size = 0;
-    auto compressed = MGARD::readfile<unsigned char>(compressed_filename.c_str(), compressed_size);
     switch(type){
         case 0:
             {
-                auto data_ori = MGARD::readfile<float>(ori_filename.c_str(), num_elements);
-                auto data_dec = test_decompress<float>(compressed.data(), compressed_size, dims);
-                print_statistics(data_ori.data(), data_dec, num_elements, compressed_size);
-                MGARD::writefile((compressed_filename + ".out").c_str(), data_dec, num_elements);
-                free(data_dec);
+                test<float>(ori_filename, compressed_filename, dims);
                 break;
             }
         case 1:
             {
-                auto data_ori = MGARD::readfile<double>(ori_filename.c_str(), num_elements);
-                auto data_dec = test_decompress<double>(compressed.data(), compressed_size, dims);
-                print_statistics(data_ori.data(), data_dec, num_elements, compressed_size);
-                MGARD::writefile((compressed_filename + ".out").c_str(), data_dec, num_elements);
-                free(data_dec);
+                test<double>(ori_filename, compressed_filename, dims);
                 break;
             }
         default:
