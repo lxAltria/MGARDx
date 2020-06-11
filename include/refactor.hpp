@@ -14,6 +14,7 @@ namespace MGARD{
 using namespace std;
 
 // BitEncoder and BitDecoder are modified from ZFP-0.3.1
+// TODO: switch to ZFP-0.5.4 for better performance
 /*
 ** Copyright (c) 2014, Lawrence Livermore National Security, LLC.
 ** Produced at the Lawrence Livermore National Laboratory.
@@ -60,6 +61,10 @@ public:
         buffer = 1u;
     }
     void encode(bool b){
+        if(current - start > capacity){
+            cout << current - start << " " << capacity << "????\n";
+            exit(0);
+        }
         buffer = (buffer << 1u) + b;
         if(buffer >= 0x100u){
             *current++ = reverse(buffer - 0x100u);
@@ -103,15 +108,15 @@ private:
 // size of segment: default 4 MB
 const int seg_size = 1;//4 * 1024 * 1024;
 
-// encode the level components progressively
+// encode the intra level components progressively
 /*
 @params data: coefficient data
 @params n: number of coefficients in current level
 @params level_exp: exponent of max level element
-@params level_components: collection of component pointers
 */
 template <class T>
-void progressive_encoding(T const * data, size_t n, int level_exp, vector<unsigned char*>& level_components){
+vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp){
+    vector<unsigned char*> intra_level_components;
     // use 32 bitplanes, where the first one is used for sign
     const int num_bitplanes = 31;
     int num_level_component = n * sizeof(T) / seg_size;
@@ -122,14 +127,14 @@ void progressive_encoding(T const * data, size_t n, int level_exp, vector<unsign
         num_level_component = 1 << (unsigned int)log2(num_level_component);
         consecutive_encoding_bits = 32 / num_level_component;
     }
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1;
+    cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << ", consecutive_encoding_bits = " << consecutive_encoding_bits << endl;
-    size_t level_component_size = n * sizeof(T) / num_level_component + 1;
-    vector<unsigned char *> level_buffer;
+    cout << "level_component_size = " << level_component_size << endl;
     vector<BitEncoder> encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
-        level_buffer.push_back(buffer);
-        // cout << +level_buffer[i][0] << " ? " << +buffer[0] << endl;
+        intra_level_components.push_back(buffer);
         encoders.push_back(BitEncoder(buffer, level_component_size));
     }
     for(int i=0; i<n; i++){
@@ -156,13 +161,12 @@ void progressive_encoding(T const * data, size_t n, int level_exp, vector<unsign
     for(int i=0; i<num_level_component; i++){
         // flush current encoding bits
         encoders[i].flush();
-        // record data
-        level_components.push_back(level_buffer[i]);
     }
+    return intra_level_components;
 }
 
 template <class T>
-T * progressive_decoding(const vector<unsigned char*>& level_components, int& offset, size_t n, int level_exp, int recompose_level_intra=0){
+T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
     T * level_data = (T *) malloc(n * sizeof(T));
     // use 32 bitplanes, where the first one is used for sign
     const int num_bitplanes = 31;
@@ -173,14 +177,13 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, int& of
         // compute consecutive_encoding_bits (CEB)
         num_level_component = 1 << (unsigned int)log2(num_level_component);
         consecutive_encoding_bits = 32 / num_level_component;
-        cout << "num_level_component = " << num_level_component << ", consecutive_encoding_bits = " << consecutive_encoding_bits << endl;
     }
     // reconstruct part of the level if requested
     if((recompose_level_intra != 0) && (recompose_level_intra < num_level_component)) num_level_component = recompose_level_intra;
-    size_t level_component_size = n * sizeof(T) / num_level_component + 1;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1;
     vector<BitDecoder> decoders;
     for(int i=0; i<num_level_component; i++){
-        decoders.push_back(BitDecoder(level_components[offset + i], level_component_size));
+        decoders.push_back(BitDecoder(level_components[i], level_component_size));
     }
     T * data_pos = level_data;
     for(int i=0; i<n; i++){
@@ -207,7 +210,6 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, int& of
         *data_pos = ldexp((float)fix_point, - num_bitplanes + level_exp);
         data_pos ++;
     }
-    offset += num_level_component;
     return level_data;
 }
 
@@ -249,61 +251,6 @@ void interleave_level_coefficients(const T * data, const vector<size_t>& dims, c
             cerr << "Other dimensions are not supported" << endl;
     }
 }
-// refactor level-centric decomposed data in hierarchical fashion
-/*
-@params data: decomposed data
-@params target_level: decomposed level
-@params dims: data dimensions
-*/
-template <class T>
-vector<unsigned char*> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims){
-    int max_level = log2(*min_element(dims.begin(), dims.end()));
-    if(target_level > max_level) target_level = max_level;
-    auto level_dims = init_levels(dims, target_level);
-    unsigned char * metadata = (unsigned char *) malloc((target_level + 1) * (sizeof(size_t) + sizeof(T)));
-    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
-    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));
-    // compute level elements
-    level_elements[0] = 1;
-    for(int j=0; j<dims.size(); j++){
-        level_elements[0] *= level_dims[0][j];
-    }
-    size_t pre_num_elements = level_elements[0];
-    for(int i=1; i<=target_level; i++){
-        size_t num_elements = 1;
-        for(int j=0; j<dims.size(); j++){
-            num_elements *= level_dims[i][j];
-        }
-        level_elements[i] = num_elements - pre_num_elements;
-        pre_num_elements = num_elements;
-    }
-    // record level components
-    vector<unsigned char *> level_components;
-    // first component is always metadata; TODO: merge it with the coarsest level component?
-    level_components.push_back(metadata);
-    vector<size_t> dims_dummy(dims.size(), 0);
-    unsigned char * buffer = (unsigned char *) malloc(level_elements[0] * sizeof(T));
-    interleave_level_coefficients(data, dims, level_dims[0], dims_dummy, reinterpret_cast<T*>(buffer), level_error_bounds[0]);
-    level_components.push_back(buffer);
-    for(int i=1; i<=target_level; i++){
-        unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
-        // extract components for each level
-        interleave_level_coefficients(data, dims, level_dims[i], level_dims[i - 1], reinterpret_cast<T*>(buffer), level_error_bounds[i]);
-        if(level_elements[i] * sizeof(T) < seg_size){
-            level_components.push_back(buffer);
-        }
-        else{
-            // identify exponent of max element
-            int level_exp = 0;
-            frexp(level_error_bounds[i], &level_exp);
-            // intra-level progressive encoding
-            progressive_encoding(buffer, level_elements[i], level_exp, level_components);
-            // release extracted component
-            free(buffer);
-        }
-    }
-    return level_components;
-}
 
 // put coeffcients in the finer level to the correct position
 /*
@@ -338,6 +285,68 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
             cerr << "Other dimensions are not supported" << endl;
     }
 }
+
+// refactor level-centric decomposed data in hierarchical fashion
+/*
+@params data: decomposed data
+@params target_level: decomposed level
+@params dims: data dimensions
+@params metadata: malloced metadata array
+*/
+template <class T>
+vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, unsigned char * metadata){
+    int max_level = log2(*min_element(dims.begin(), dims.end()));
+    if(target_level > max_level) target_level = max_level;
+    auto level_dims = init_levels(dims, target_level);
+    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
+    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));
+    // compute level elements
+    level_elements[0] = 1;
+    for(int j=0; j<dims.size(); j++){
+        level_elements[0] *= level_dims[0][j];
+    }
+    size_t pre_num_elements = level_elements[0];
+    for(int i=1; i<=target_level; i++){
+        size_t num_elements = 1;
+        for(int j=0; j<dims.size(); j++){
+            num_elements *= level_dims[i][j];
+        }
+        level_elements[i] = num_elements - pre_num_elements;
+        pre_num_elements = num_elements;
+    }
+    // record all level components
+    vector<vector<unsigned char*>> level_components;
+    vector<size_t> dims_dummy(dims.size(), 0);
+    unsigned char * buffer = (unsigned char *) malloc(level_elements[0] * sizeof(T));
+    interleave_level_coefficients(data, dims, level_dims[0], dims_dummy, reinterpret_cast<T*>(buffer), level_error_bounds[0]);
+    vector<unsigned char*> first_level;
+    first_level.push_back(buffer);
+    // first component is the coarsest representation of full precision
+    level_components.push_back(first_level);
+    for(int i=1; i<=target_level; i++){
+        cout << "encoding level " << i << endl;
+        unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
+        // extract components for each level
+        interleave_level_coefficients(data, dims, level_dims[i], level_dims[i - 1], reinterpret_cast<T*>(buffer), level_error_bounds[i]);
+        if(level_elements[i] * sizeof(T) < seg_size){
+            vector<unsigned char*> tiny_level;
+            tiny_level.push_back(buffer);
+            level_components.push_back(tiny_level);
+        }
+        else{
+            // identify exponent of max element
+            int level_exp = 0;
+            frexp(level_error_bounds[i], &level_exp);
+            // intra-level progressive encoding
+            auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp);
+            level_components.push_back(intra_level_components);
+            // release extracted component
+            free(buffer);
+        }
+    }
+    return level_components;
+}
+
 // reposition level-centric decomposed data for recomposition
 /*
 @params data: decomposed data
@@ -346,11 +355,10 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
 @params dims: data dimensions, modified after calling the function
 */
 template <class T>
-T * level_centric_data_reposition(const vector<unsigned char*>& level_components, int target_level, int target_recompose_level, vector<size_t>& dims){
+T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const unsigned char * metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims){
     auto level_dims = init_levels(dims, target_level);
-    unsigned char * metadata = level_components[0];
-    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
-    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));    
+    const size_t * level_elements = reinterpret_cast<const size_t*>(metadata);
+    const T * level_error_bounds = reinterpret_cast<const T*>(metadata + (target_level + 1) * sizeof(size_t));    
     size_t num_elements = 1;
     for(int j=0; j<dims.size(); j++){
         dims[j] = level_dims[target_recompose_level][j];
@@ -358,20 +366,17 @@ T * level_centric_data_reposition(const vector<unsigned char*>& level_components
     }
     T * data = (T *) malloc(num_elements * sizeof(T));
     vector<size_t> dims_dummy(dims.size(), 0);
-    reposition_level_coefficients(reinterpret_cast<T*>(level_components[1]), dims, level_dims[0], dims_dummy, data);
-    int offset = 1; // level component offset, skipping meta data and the coarsest level
+    reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
     for(int i=1; i<=target_recompose_level; i++){
         if(level_elements[i] * sizeof(T) < seg_size){
-            reposition_level_coefficients(reinterpret_cast<T*>(level_components[offset]), dims, level_dims[i], level_dims[i - 1], data);
-            offset ++;
+            reposition_level_coefficients(reinterpret_cast<T*>(level_components[i][0]), dims, level_dims[i], level_dims[i - 1], data);
         }
         else{
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
             // intra-level progressive decoding
-            int recompose_level_intra = 0;
-            auto buffer = progressive_decoding<T>(level_components, offset, level_elements[i], level_exp, recompose_level_intra);
+            auto buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);
             reposition_level_coefficients(buffer, dims, level_dims[i], level_dims[i - 1], data);
             // release reconstructed component
             free(buffer);

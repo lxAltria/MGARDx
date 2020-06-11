@@ -14,7 +14,6 @@ void test(string filename, int recompose_level_intra){
     int err = 0;
     size_t num_elements = 0;
     auto data = MGARD::readfile<T>(filename.c_str(), num_elements);
-    vector<unsigned char*> level_components;
     T max_val = 0;
     for(const auto& d:data){
         if(fabs(d) > max_val) max_val = fabs(d);
@@ -23,12 +22,11 @@ void test(string filename, int recompose_level_intra){
     frexp(max_val, &level_exp);
     cout << max_val << " " << level_exp << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    MGARD::progressive_encoding(data.data(), num_elements, level_exp, level_components);
+    auto level_components = MGARD::progressive_encoding(data.data(), num_elements, level_exp);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    int offset = 0;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data_recomp = MGARD::progressive_decoding<T>(level_components, offset, num_elements, level_exp, recompose_level_intra);
+    T * data_recomp = MGARD::progressive_decoding<T>(level_components, num_elements, level_exp, recompose_level_intra);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     MGARD::print_statistics(data.data(), data_recomp, num_elements);

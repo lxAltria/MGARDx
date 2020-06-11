@@ -20,12 +20,13 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Decomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    auto components = MGARD::level_centric_data_refactor(data.data(), target_level, dims);
+    unsigned char * metadata = (unsigned char *) malloc((target_level + 1) * (sizeof(size_t) + sizeof(T)));
+    auto components = MGARD::level_centric_data_refactor(data.data(), target_level, dims, metadata);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Refactor time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    MGARD::writefile(string("refactor.metadata").c_str(), components[0], (target_level + 1) * (sizeof(size_t) + sizeof(T)));
-    size_t * level_elements = reinterpret_cast<size_t*>(components[0]);
-    T * level_error_bounds = reinterpret_cast<T*>(components[0] + (target_level + 1) * sizeof(size_t));    
+    MGARD::writefile(string("refactor_data/metadata").c_str(), metadata, (target_level + 1) * (sizeof(size_t) + sizeof(T)));
+    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
+    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));    
     cout << "level elements: ";
     for(int i=0; i<=target_level; i++){
         cout << level_elements[i] << " ";
@@ -37,34 +38,45 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     }
     cout << endl << endl;
     for(int i=0; i<=target_level; i++){
-        MGARD::writefile<unsigned char>(("refactor.level_" + to_string(target_level - i)).c_str(), components[i + 1], level_elements[i] * sizeof(T));
-        free(components[i + 1]);
+        for(int j=0; j<components[i].size(); j++){
+            size_t level_component_size = (level_elements[i] * sizeof(T) - 1) / components[i].size() + 1;
+            MGARD::writefile<unsigned char>(("refactor_data/level_" + to_string(target_level - i) + "_" + to_string(j)).c_str(), components[i][j], level_component_size);
+            free(components[i][j]);
+        }
     }
-    free(components[0]);
+    // free metadata
+    free(metadata);
 }
 
 template <class T>
 T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vector<size_t>& recompose_dims){
-    vector<unsigned char*> components;
+    vector<vector<unsigned char*>> components;
     size_t tmp_size = 0;
-    auto metadata = MGARD::readfile_pointer<unsigned char>(string("refactor.metadata").c_str(), tmp_size);
+    auto metadata = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
     int target_level = tmp_size / (sizeof(T) + sizeof(size_t)) - 1;
-    cout << target_level << endl;
     size_t * level_elements = reinterpret_cast<size_t*>(metadata);
-    components.push_back(metadata);
+    // auto intra_level_components = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
+    vector<int> num_intra_level_components(target_level + 1, 1);
+    num_intra_level_components[1] = 16;
     target_recompose_level = target_level - target_recompose_level;
     for(int i=0; i<=target_recompose_level; i++){
-        auto level_component = MGARD::readfile_pointer<unsigned char>(("refactor.level_" + to_string(target_level - i)).c_str(), tmp_size);
+        vector<unsigned char*> level_component;
+        for(int j=0; j<num_intra_level_components[i]; j++){
+            auto intra_level_component = MGARD::readfile_pointer<unsigned char>(("refactor_data/level_" + to_string(target_level - i) + "_" + to_string(j)).c_str(), tmp_size);
+            level_component.push_back(intra_level_component);            
+        }
         components.push_back(level_component);
     }
     struct timespec start, end;
     int err = 0;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data = MGARD::level_centric_data_reposition<T>(components, target_level, target_recompose_level, recompose_dims);
+    T * data = MGARD::level_centric_data_reposition<T>(components, metadata, target_level, target_recompose_level, num_intra_level_components, recompose_dims);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Reposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     for(int i=0; i<components.size(); i++){
-        free(components[i]);
+        for(int j=0; j<components[i].size(); j++){
+            free(components[i][j]);
+        }
     }
     err = clock_gettime(CLOCK_REALTIME, &start);
     MGARD::Recomposer<T> recomposer;
