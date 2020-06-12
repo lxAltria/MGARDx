@@ -56,8 +56,9 @@ T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vect
     int target_level = tmp_size / (sizeof(T) + sizeof(size_t)) - 1;
     size_t * level_elements = reinterpret_cast<size_t*>(metadata);
     // auto intra_level_components = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
-    vector<int> num_intra_level_components(target_level + 1, 1);
-    num_intra_level_components[1] = 16;
+    vector<int> num_intra_level_components(target_level + 1, 32);
+    num_intra_level_components[0] = 1;
+    num_intra_level_components[target_level] = 16;
     target_recompose_level = target_level - target_recompose_level;
     for(int i=0; i<=target_recompose_level; i++){
         vector<unsigned char*> level_component;

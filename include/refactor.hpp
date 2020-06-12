@@ -8,13 +8,16 @@
 #include <cmath>
 #include <algorithm>
 #include "utils.hpp"
+// use ZFP-0.5.5 bitstream
+#include "bitstream.h"
 
 namespace MGARD{
 
 using namespace std;
 
 // BitEncoder and BitDecoder are modified from ZFP-0.3.1
-// TODO: switch to ZFP-0.5.4 for better performance
+// Switched to ZFP-0.5.5 for better encoding performance
+// Keep original decoder because of performance
 /*
 ** Copyright (c) 2014, Lawrence Livermore National Security, LLC.
 ** Produced at the Lawrence Livermore National Laboratory.
@@ -131,11 +134,13 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << ", consecutive_encoding_bits = " << consecutive_encoding_bits << endl;
     cout << "level_component_size = " << level_component_size << endl;
-    vector<BitEncoder> encoders;
+    // vector<BitEncoder> encoders;
+    vector<bitstream*> encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
         intra_level_components.push_back(buffer);
-        encoders.push_back(BitEncoder(buffer, level_component_size));
+        // encoders.push_back(BitEncoder(buffer, level_component_size));
+        encoders.push_back(stream_open(buffer, level_component_size));
     }
     for(int i=0; i<n; i++){
         T cur_data = ldexp(data[i], num_bitplanes - level_exp);
@@ -144,23 +149,28 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         // encode sign and the first (CEB - 1) bits
         bool sign = data[i] < 0;
         unsigned int fp = sign ? -fix_point : +fix_point;
-        encoders[0].encode(sign);
+        // encoders[0].encode(sign);
+        stream_write_bit(encoders[0], sign);
         unsigned int bit = 31;
         for(int k=1; k<consecutive_encoding_bits; k++){
-            encoders[0].encode((fp >> bit) & 1);
+            // encoders[0].encode((fp >> bit) & 1);
+            stream_write_bit(encoders[0], (fp >> bit) & 1);
             bit --;
         }
         for(int j=1; j<num_level_component; j++){
             // encode CEB bits at a time
             for(int k=0; k<consecutive_encoding_bits; k++){
-                encoders[j].encode((fp >> bit) & 1);
+                // encoders[j].encode((fp >> bit) & 1);
+                stream_write_bit(encoders[j], (fp >> bit) & 1);
                 bit --;
             }
         }
     }
     for(int i=0; i<num_level_component; i++){
         // flush current encoding bits
-        encoders[i].flush();
+        // encoders[i].flush();
+        stream_flush(encoders[i]);
+        stream_close(encoders[i]);
     }
     return intra_level_components;
 }
@@ -182,18 +192,22 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, size_t 
     if((recompose_level_intra != 0) && (recompose_level_intra < num_level_component)) num_level_component = recompose_level_intra;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1;
     vector<BitDecoder> decoders;
+    // vector<bitstream*> decoders;
     for(int i=0; i<num_level_component; i++){
         decoders.push_back(BitDecoder(level_components[i], level_component_size));
+        // decoders.push_back(stream_open(level_components[i], level_component_size));
     }
     T * data_pos = level_data;
     for(int i=0; i<n; i++){
         // decode each bit of the data for each level component
         // decode sign and the first (CEB - 1) bits
         bool sign = decoders[0].decode();
+        // bool sign = stream_read_bit(decoders[0]);
         unsigned int fp = 0;
         unsigned int bit = 31;
         for(int k=1; k<consecutive_encoding_bits; k++){
             unsigned int current_bit = decoders[0].decode();
+            // unsigned int current_bit = stream_read_bit(decoders[0]);
             fp |= current_bit << bit;
             bit --;
         }
@@ -201,6 +215,7 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, size_t 
             // encode CEB bits at a time
             for(int k=0; k<consecutive_encoding_bits; k++){
                 unsigned int current_bit = decoders[j].decode();
+                // unsigned int current_bit = stream_read_bit(decoders[j]);
                 fp |= current_bit << bit;
                 bit --;
             }
@@ -210,6 +225,9 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, size_t 
         *data_pos = ldexp((float)fix_point, - num_bitplanes + level_exp);
         data_pos ++;
     }
+    // for(int i=0; i<num_level_component; i++){
+    //     stream_close(decoders[i]);
+    // }
     return level_data;
 }
 

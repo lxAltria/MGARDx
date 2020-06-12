@@ -13,7 +13,16 @@ target_include_directories(test_decompress PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(test_decompress PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
 target_link_libraries(test_decompress ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
 
+find_library(ZFP_LIB zfp HINTS "/Users/xin/github/zfp/build/lib")
+set (ZFP_INC "/Users/xin/github/zfp/include")
+
 add_executable (test_refactor test_refactor.cpp)
 target_include_directories(test_refactor PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_include_directories(test_refactor PUBLIC ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
-target_link_libraries(test_refactor ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+target_include_directories(test_refactor PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_refactor ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+
+add_executable (test_intra_level_progressive_encoding test_intra_level_progressive_encoding.cpp)
+target_include_directories(test_intra_level_progressive_encoding PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_intra_level_progressive_encoding PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_intra_level_progressive_encoding ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+
