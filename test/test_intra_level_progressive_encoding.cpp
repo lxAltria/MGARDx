@@ -22,11 +22,11 @@ void test(string filename, int recompose_level_intra){
     frexp(max_val, &level_exp);
     cout << max_val << " " << level_exp << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    auto level_components = MGARD::progressive_encoding(data.data(), num_elements, level_exp);
+    auto level_components = REFACTOR::progressive_encoding(data.data(), num_elements, level_exp);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data_recomp = MGARD::progressive_decoding<T>(level_components, num_elements, level_exp, recompose_level_intra);
+    T * data_recomp = REFACTOR::progressive_decoding<T>(level_components, num_elements, level_exp, recompose_level_intra);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     MGARD::print_statistics(data.data(), data_recomp, num_elements);

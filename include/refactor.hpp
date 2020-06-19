@@ -12,9 +12,10 @@
 // use ZFP-0.5.5 bitstream
 #include "bitstream.h"
 
-namespace MGARD{
+namespace REFACTOR{
 
 using namespace std;
+using namespace MGARD;
 
 // BitEncoder and BitDecoder are modified from ZFP-0.3.1
 // Switched to ZFP-0.5.5 for better encoding performance
@@ -315,7 +316,6 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
     vector<unsigned char*> intra_level_components;
     // use 32 bitplanes, where the first one is used for sign
     unsigned int num_level_component = 32;
-    unsigned int num_bitplanes = num_level_component - 1;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -325,17 +325,16 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
         encoders.push_back(RunlengthEncoder());
     }
     for(int i=0; i<n; i++){
-        T cur_data = ldexp(data[i], num_bitplanes - level_exp);
+        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
         long int fix_point = (long int) cur_data;
         // encode each bit of the data for each level component
-        // encode sign
+        // encode sign and the first (CEB - 1) bits
         bool sign = data[i] < 0;
         unsigned int fp = sign ? -fix_point : +fix_point;
         encoders[0].encode(sign);
-        unsigned int bit = num_bitplanes;
-        for(int j=1; j<num_level_component; j++){
-            encoders[j].encode((fp >> bit) & 1);
-            bit --;
+        for(int j=num_level_component - 1; j>0; j--){
+            encoders[j].encode(fp & 1);
+            fp >>= 1;
         }
     }
     for(int i=0; i<num_level_component; i++){
@@ -527,6 +526,62 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
     }
 }
 
+template <class T>
+class Metadata{
+public:
+    Metadata(){}
+    Metadata(int target_level){
+        level_elements = vector<size_t>(target_level + 1);
+        level_error_bounds = vector<T>(target_level + 1);
+    }
+    vector<size_t> level_elements;    //
+    vector<T> level_error_bounds;     //
+    size_t size(){
+        return  sizeof(size_t) // number of levels
+                + level_elements.size() * sizeof(size_t) 
+                + level_error_bounds.size() * sizeof(T);
+    }
+    unsigned char * serialize(){
+        unsigned char * buffer = (unsigned char *) malloc(size());
+        unsigned char * buffer_pos = buffer;
+        size_t num_levels = level_elements.size();
+        *reinterpret_cast<size_t*>(buffer_pos) = num_levels;
+        buffer_pos += sizeof(size_t);
+        memcpy(buffer_pos, level_elements.data(), num_levels * sizeof(size_t));
+        buffer_pos += num_levels * sizeof(size_t);
+        memcpy(buffer_pos, level_error_bounds.data(), num_levels * sizeof(T));
+        buffer_pos += num_levels * sizeof(T);
+        return buffer;
+    }
+    void deserialize(const unsigned char * serialized_data){
+        const unsigned char * buffer_pos = serialized_data;
+        size_t num_levels = *reinterpret_cast<const size_t*>(buffer_pos);
+        buffer_pos += sizeof(size_t);
+        level_elements = vector<size_t>(reinterpret_cast<const size_t *>(buffer_pos), reinterpret_cast<const size_t *>(buffer_pos) + num_levels);
+        buffer_pos += num_levels * sizeof(size_t);
+        level_error_bounds = vector<T>(reinterpret_cast<const T *>(buffer_pos), reinterpret_cast<const T *>(buffer_pos) + num_levels);
+        buffer_pos += num_levels * sizeof(size_t);
+    }
+    void to_file(const string& filename){
+        auto serialized_data = serialize();
+        writefile(filename.c_str(), serialized_data, size());
+        free(serialized_data);
+    }
+    void from_file(const string& filename){
+        size_t num_bytes = 0;
+        unsigned char * buffer = readfile_pointer<unsigned char>(filename.c_str(), num_bytes);
+        deserialize(buffer);
+        for(int i=0; i<level_elements.size(); i++){
+            cout << level_elements[i] << " ";
+        }
+        cout << endl;
+        for(int i=0; i<level_elements.size(); i++){
+            cout << level_error_bounds[i] << " ";
+        }
+        cout << endl;
+        free(buffer);
+    }
+};
 // refactor level-centric decomposed data in hierarchical fashion
 /*
 @params data: decomposed data
@@ -536,12 +591,12 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
 @params with_compression: whether to use lossless compression on leading zeros
 */
 template <class T>
-vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, unsigned char * metadata, bool with_compression=false){
+vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, Metadata<T>& metadata, bool with_compression=false){
     int max_level = log2(*min_element(dims.begin(), dims.end()));
     if(target_level > max_level) target_level = max_level;
     auto level_dims = init_levels(dims, target_level);
-    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
-    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));
+    vector<size_t>& level_elements = metadata.level_elements;
+    vector<T>& level_error_bounds = metadata.level_error_bounds;
     // compute level elements
     level_elements[0] = 1;
     for(int j=0; j<dims.size(); j++){
@@ -604,10 +659,10 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
 @params with_compression: whether to use lossless compression on leading zeros
 */
 template <class T>
-T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const unsigned char * metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims, const vector<bool>& with_compression){
+T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const Metadata<T>& metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims, const vector<bool>& with_compression){
     auto level_dims = init_levels(dims, target_level);
-    const size_t * level_elements = reinterpret_cast<const size_t*>(metadata);
-    const T * level_error_bounds = reinterpret_cast<const T*>(metadata + (target_level + 1) * sizeof(size_t));    
+    const vector<size_t>& level_elements = metadata.level_elements;
+    const vector<T>& level_error_bounds = metadata.level_error_bounds;
     size_t num_elements = 1;
     for(int j=0; j<dims.size(); j++){
         dims[j] = level_dims[target_recompose_level][j];

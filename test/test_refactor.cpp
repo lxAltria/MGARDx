@@ -26,15 +26,18 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Decomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    unsigned char * metadata = (unsigned char *) malloc((target_level + 1) * (sizeof(size_t) + sizeof(T)));
+    // create metadata
+    REFACTOR::Metadata<T> metadata(target_level);
     // whether to enable lossless compression on leading zeros
     bool with_compression = true;    
-    auto components = MGARD::level_centric_data_refactor(data.data(), target_level, dims, metadata, with_compression);
+    auto components = REFACTOR::level_centric_data_refactor(data.data(), target_level, dims, metadata, with_compression);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Refactor time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    MGARD::writefile(string("refactor_data/metadata").c_str(), metadata, (target_level + 1) * (sizeof(size_t) + sizeof(T)));
-    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
-    T * level_error_bounds = reinterpret_cast<T*>(metadata + (target_level + 1) * sizeof(size_t));    
+    // write metadat
+    // MGARD::writefile(string("refactor_data/metadata").c_str(), metadata, (target_level + 1) * (sizeof(size_t) + sizeof(T)));
+    metadata.to_file(string("refactor_data/metadata").c_str());
+    const vector<size_t>& level_elements = metadata.level_elements;
+    const vector<T>& level_error_bounds = metadata.level_error_bounds;    
     cout << "level elements: ";
     for(int i=0; i<=target_level; i++){
         cout << level_elements[i] << " ";
@@ -63,24 +66,23 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
             }
         }
     }
-    // free metadata
-    free(metadata);
 }
 
 template <class T>
 T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vector<size_t>& recompose_dims){
     vector<vector<unsigned char*>> components;
-    size_t tmp_size = 0;
-    auto metadata = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
-    int target_level = tmp_size / (sizeof(T) + sizeof(size_t)) - 1;
-    size_t * level_elements = reinterpret_cast<size_t*>(metadata);
+    // auto metadata = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
+    REFACTOR::Metadata<T> metadata;
+    metadata.from_file(string("refactor_data/metadata").c_str());
+    int target_level = metadata.level_elements.size() - 1;
     // auto intra_level_components = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
     vector<int> num_intra_level_components(target_level + 1, 32);
     num_intra_level_components[0] = 1;
-    num_intra_level_components[target_level] = 16;
+    // num_intra_level_components[target_level] = 16;
     target_recompose_level = target_level - target_recompose_level;
     vector<bool> with_compression(target_recompose_level + 1, false);
     for(int i=0; i<=target_recompose_level; i++){
+        size_t tmp_size = 0;
         // check whether "metadata" exists
         with_compression[i] = file_exist(("refactor_data/level_" + to_string(target_level - i) + "_metadata").c_str());
         vector<unsigned char*> level_component;
@@ -99,10 +101,9 @@ T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vect
     struct timespec start, end;
     int err = 0;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data = MGARD::level_centric_data_reposition<T>(components, metadata, target_level, target_recompose_level, num_intra_level_components, recompose_dims, with_compression);
+    T * data = REFACTOR::level_centric_data_reposition<T>(components, metadata, target_level, target_recompose_level, num_intra_level_components, recompose_dims, with_compression);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Reposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    free(metadata);
     for(int i=0; i<components.size(); i++){
         for(int j=0; j<components[i].size(); j++){
             free(components[i][j]);
