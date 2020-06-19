@@ -7,6 +7,7 @@
 #include <fstream>
 #include <cmath>
 #include <algorithm>
+#include <bitset>
 #include "utils.hpp"
 // use ZFP-0.5.5 bitstream
 #include "bitstream.h"
@@ -18,6 +19,7 @@ using namespace std;
 // BitEncoder and BitDecoder are modified from ZFP-0.3.1
 // Switched to ZFP-0.5.5 for better encoding performance
 // Keep original decoder because of performance
+/*******************************************/
 /*
 ** Copyright (c) 2014, Lawrence Livermore National Security, LLC.
 ** Produced at the Lawrence Livermore National Laboratory.
@@ -141,6 +143,77 @@ private:
     size_t capacity = 0;
     unsigned int buffer = 1u;
 };
+/*******************************************/
+// end ZFP-related
+
+// Runlength encoder
+class RunlengthEncoder{
+public:
+    RunlengthEncoder(){}
+    void encode(bool bit){
+        if(lastbit == bit){
+            count ++;
+            if(count == 256){
+                count = 0;
+                lastbit = !bit;
+            }
+        }
+        else {
+            length.push_back(count);
+            count = 0;
+            lastbit = bit;
+        }
+    }
+    bool decode(){
+        if(count){
+            count --;
+            return lastbit;
+        }
+        else{
+            count = length[index ++];
+            lastbit = !lastbit;
+            return decode();
+        }
+    }
+    void flush(){
+        if(count != 0){
+            length.push_back(count);
+            count = 0;
+            lastbit = false;
+        }
+    }
+    unsigned char * save(){
+        // Huffman
+        unsigned char * compressed = (unsigned char *) malloc(length.size() * sizeof(int));
+        auto compressed_pos = compressed + sizeof(size_t);
+        auto encoder = SZ::HuffmanEncoder<int>();
+        encoder.preprocess_encode(length, 2*256);
+        encoder.save(compressed_pos);
+        encoder.encode(length, compressed_pos);
+        encoder.postprocess_encode();
+        size_t compressed_length = compressed_pos - compressed;
+        *reinterpret_cast<size_t*>(compressed) = compressed_length;
+        return compressed;
+    }
+    void load(const unsigned char * compressed, size_t n){
+        const unsigned char * compressed_pos = compressed;
+        auto encoder = SZ::HuffmanEncoder<int>();
+        // remaining_length = n for placeholder (may not be accurate)
+        size_t remaining_length = n;
+        encoder.load(compressed_pos, remaining_length);
+        length = encoder.decode(compressed_pos, n);
+        encoder.postprocess_decode();
+        count = 0;
+        index = 0;
+        // toggle lastbit to true such that the first decode would be false since count=0
+        lastbit = true;
+    }
+private:
+    vector<int> length;
+    bool lastbit = false;
+    int count = 0;
+    int index = 0;
+};
 
 // size of segment: default 4 MB
 const int seg_size = 1;//4 * 1024 * 1024;
@@ -155,18 +228,10 @@ template <class T>
 vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp){
     vector<unsigned char*> intra_level_components;
     // use 32 bitplanes, where the first one is used for sign
-    const int num_bitplanes = 31;
-    int num_level_component = n * sizeof(T) / seg_size;
-    int consecutive_encoding_bits = 1;
-    if(num_level_component >= num_bitplanes) num_level_component = num_bitplanes + 1;
-    else{
-        // compute consecutive_encoding_bits (CEB)
-        num_level_component = 1 << (unsigned int)log2(num_level_component);
-        consecutive_encoding_bits = 32 / num_level_component;
-    }
-    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1;
+    unsigned int num_level_component = 32;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
-    cout << "num_level_component = " << num_level_component << ", consecutive_encoding_bits = " << consecutive_encoding_bits << endl;
+    cout << "num_level_component = " << num_level_component << endl;
     cout << "level_component_size = " << level_component_size << endl;
     // vector<BitEncoder> encoders;
     vector<bitstream*> encoders;
@@ -177,7 +242,7 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         encoders.push_back(stream_open(buffer, level_component_size));
     }
     for(int i=0; i<n; i++){
-        T cur_data = ldexp(data[i], num_bitplanes - level_exp);
+        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
         long int fix_point = (long int) cur_data;
         // encode each bit of the data for each level component
         // encode sign and the first (CEB - 1) bits
@@ -185,19 +250,9 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         unsigned int fp = sign ? -fix_point : +fix_point;
         // encoders[0].encode(sign);
         stream_write_bit(encoders[0], sign);
-        unsigned int bit = 31;
-        for(int k=1; k<consecutive_encoding_bits; k++){
-            // encoders[0].encode((fp >> bit) & 1);
-            stream_write_bit(encoders[0], (fp >> bit) & 1);
-            bit --;
-        }
-        for(int j=1; j<num_level_component; j++){
-            // encode CEB bits at a time
-            for(int k=0; k<consecutive_encoding_bits; k++){
-                // encoders[j].encode((fp >> bit) & 1);
-                stream_write_bit(encoders[j], (fp >> bit) & 1);
-                bit --;
-            }
+        for(int j=num_level_component - 1; j>0; j--){
+            stream_write_bit(encoders[j], fp & 1);
+            fp >>= 1;
         }
     }
     for(int i=0; i<num_level_component; i++){
@@ -213,18 +268,13 @@ template <class T>
 T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
     T * level_data = (T *) malloc(n * sizeof(T));
     // use 32 bitplanes, where the first one is used for sign
-    const int num_bitplanes = 31;
-    int num_level_component = n * sizeof(T) / seg_size;
-    int consecutive_encoding_bits = 1;
-    if(num_level_component >= num_bitplanes) num_level_component = num_bitplanes + 1;
-    else{
-        // compute consecutive_encoding_bits (CEB)
-        num_level_component = 1 << (unsigned int)log2(num_level_component);
-        consecutive_encoding_bits = 32 / num_level_component;
-    }
+    int num_level_component = 32;
     // reconstruct part of the level if requested
     if((recompose_level_intra != 0) && (recompose_level_intra < num_level_component)) num_level_component = recompose_level_intra;
-    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
     vector<BitDecoder> decoders;
     // vector<bitstream*> decoders;
     for(int i=0; i<num_level_component; i++){
@@ -238,31 +288,60 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, size_t 
         bool sign = decoders[0].decode();
         // bool sign = stream_read_bit(decoders[0]);
         unsigned int fp = 0;
-        unsigned int bit = 31;
-        for(int k=1; k<consecutive_encoding_bits; k++){
-            unsigned int current_bit = decoders[0].decode();
-            // unsigned int current_bit = stream_read_bit(decoders[0]);
-            fp |= current_bit << bit;
-            bit --;
-        }
         for(int j=1; j<num_level_component; j++){
-            // encode CEB bits at a time
-            for(int k=0; k<consecutive_encoding_bits; k++){
-                unsigned int current_bit = decoders[j].decode();
-                // unsigned int current_bit = stream_read_bit(decoders[j]);
-                fp |= current_bit << bit;
-                bit --;
-            }
+            unsigned int current_bit = decoders[j].decode();
+            // unsigned int current_bit = stream_read_bit(decoders[j]);
+            fp = (fp << 1) + current_bit;
         }
-        signed int fix_point = fp;
+        long int fix_point = fp;
         if(sign) fix_point = -fix_point;
-        *data_pos = ldexp((float)fix_point, - num_bitplanes + level_exp);
+        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
         data_pos ++;
     }
     // for(int i=0; i<num_level_component; i++){
     //     stream_close(decoders[i]);
     // }
     return level_data;
+}
+
+// encode the intra level components progressively, with runlength encoding on each bit-plane
+/*
+@params data: coefficient data
+@params n: number of coefficients in current level
+@params level_exp: exponent of max level element
+*/
+template <class T>
+vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data, size_t n, int level_exp){
+    vector<unsigned char*> intra_level_components;
+    // use 32 bitplanes, where the first one is used for sign
+    unsigned int num_level_component = 32;
+    unsigned int num_bitplanes = num_level_component - 1;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
+    vector<RunlengthEncoder> encoders;
+    for(int i=0; i<num_level_component; i++){
+        encoders.push_back(RunlengthEncoder());
+    }
+    for(int i=0; i<n; i++){
+        T cur_data = ldexp(data[i], num_bitplanes - level_exp);
+        long int fix_point = (long int) cur_data;
+        // encode each bit of the data for each level component
+        // encode sign
+        bool sign = data[i] < 0;
+        unsigned int fp = sign ? -fix_point : +fix_point;
+        encoders[0].encode(sign);
+        unsigned int bit = num_bitplanes;
+        for(int j=1; j<num_level_component; j++){
+            encoders[j].encode((fp >> bit) & 1);
+            bit --;
+        }
+    }
+    for(int i=0; i<num_level_component; i++){
+        intra_level_components.push_back(encoders[i].save());
+    }
+    return intra_level_components;
 }
 
 // encode the intra level components progressively, with lossless compression on leading zeros
@@ -272,7 +351,7 @@ T * progressive_decoding(const vector<unsigned char*>& level_components, size_t 
 @params level_exp: exponent of max level element
 */
 template <class T>
-vector<unsigned char*> progressive_encoding_with_compression(T const * data, size_t n, int level_exp){
+vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data, size_t n, int level_exp){
     vector<unsigned char*> intra_level_components;
     // use 32 bitplanes, where the first one is used for sign
     int num_level_component = 32;
@@ -335,7 +414,7 @@ vector<unsigned char*> progressive_encoding_with_compression(T const * data, siz
 }
 
 template <class T>
-T * progressive_decoding_with_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
+T * progressive_decoding_with_lzc_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
     T * level_data = (T *) malloc(n * sizeof(T));
     // use 32 bitplanes, where the first one is used for sign
     int num_level_component = 32;
@@ -352,8 +431,7 @@ T * progressive_decoding_with_compression(const vector<unsigned char*>& level_co
     size_t remaining_length = n;
     encoder.load(bitplane_metadata_pos, remaining_length);
     auto leading_zeros = encoder.decode(bitplane_metadata_pos, n);
-    // use postprocess_encode because freeHuffman in postprocess_decode was commented
-    encoder.postprocess_encode();
+    encoder.postprocess_decode();
     // decode data
     vector<BitDecoder> decoders;
     for(int i=0; i<num_level_component; i++){
@@ -365,15 +443,9 @@ T * progressive_decoding_with_compression(const vector<unsigned char*>& level_co
         // decode sign
         bool sign = decoders[0].decode();
         unsigned int fp = 0;
-        for(int j=leading_zeros[i]; j<num_level_component - 1; j++){
+        for(int j=leading_zeros[i]; j<num_level_component; j++){
             unsigned int current_bit = decoders[j].decode();
-            fp += current_bit;
-            fp <<= 1;
-        }
-        if(leading_zeros[i] < num_level_component){
-            // decode last
-            unsigned int current_bit = decoders[num_level_component - 1].decode();
-            fp += current_bit;
+            fp = (fp << 1) + current_bit;
         }
         signed int fix_point = fp;
         if(sign) fix_point = -fix_point;
@@ -509,7 +581,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             frexp(level_error_bounds[i], &level_exp);
             // intra-level progressive encoding
             if(with_compression){
-                auto intra_level_components = progressive_encoding_with_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp);
+                auto intra_level_components = progressive_encoding_with_lzc_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp);
                 level_components.push_back(intra_level_components);
             }
             else{
@@ -556,7 +628,7 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             T * buffer = NULL;
             // intra-level progressive decoding
             if(with_compression[i]){
-                buffer = progressive_decoding_with_compression<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);
+                buffer = progressive_decoding_with_lzc_compression<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);
             }
             else{
                 buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);                
