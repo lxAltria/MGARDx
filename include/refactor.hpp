@@ -216,8 +216,78 @@ private:
     int index = 0;
 };
 
+// metadata for refactored data
+#define ENCODING_DEFAULT 0
+#define ENCODING_RLE 1
+#define ENCODING_LZC 2
+template <class T>
+class Metadata{
+public:
+    Metadata(){}
+    Metadata(int target_level){
+        level_elements = vector<size_t>(target_level + 1);
+        level_error_bounds = vector<T>(target_level + 1);
+    }
+    vector<size_t> level_elements;    // number of elements in each multigrid level
+    vector<T> level_error_bounds;     // max errors in each multigrid level
+    vector<vector<size_t>> components_sizes; // size of each component in each level
+    int option = ENCODING_DEFAULT;
+    int encoded_bitplanes = 32;
+
+    void init_encoded_sizes(){
+        components_sizes.clear();
+        for(int i=0; i<level_elements.size(); i++){
+            components_sizes.push_back(vector<size_t>());
+        }
+    }
+    size_t size(){
+        return  sizeof(int) + sizeof(int) + sizeof(size_t) // option + encoded_bitplanes + number of levels
+                + level_elements.size() * sizeof(size_t) 
+                + level_error_bounds.size() * sizeof(T);
+    }
+    unsigned char * serialize(){
+        unsigned char * buffer = (unsigned char *) malloc(size());
+        unsigned char * buffer_pos = buffer;
+        *reinterpret_cast<int*>(buffer_pos) = option;
+        buffer_pos += sizeof(int);
+        *reinterpret_cast<int*>(buffer_pos) = encoded_bitplanes;
+        buffer_pos += sizeof(int);
+        size_t num_levels = level_elements.size();
+        *reinterpret_cast<size_t*>(buffer_pos) = num_levels;
+        buffer_pos += sizeof(size_t);
+        memcpy(buffer_pos, level_elements.data(), num_levels * sizeof(size_t));
+        buffer_pos += num_levels * sizeof(size_t);
+        memcpy(buffer_pos, level_error_bounds.data(), num_levels * sizeof(T));
+        buffer_pos += num_levels * sizeof(T);
+        return buffer;
+    }
+    void deserialize(const unsigned char * serialized_data){
+        const unsigned char * buffer_pos = serialized_data;
+        option = *reinterpret_cast<const int*>(buffer_pos);
+        buffer_pos += sizeof(int);
+        encoded_bitplanes = *reinterpret_cast<const int*>(buffer_pos);
+        buffer_pos += sizeof(int);
+        size_t num_levels = *reinterpret_cast<const size_t*>(buffer_pos);
+        buffer_pos += sizeof(size_t);
+        level_elements = vector<size_t>(reinterpret_cast<const size_t *>(buffer_pos), reinterpret_cast<const size_t *>(buffer_pos) + num_levels);
+        buffer_pos += num_levels * sizeof(size_t);
+        level_error_bounds = vector<T>(reinterpret_cast<const T *>(buffer_pos), reinterpret_cast<const T *>(buffer_pos) + num_levels);
+        buffer_pos += num_levels * sizeof(size_t);
+    }
+    void to_file(const string& filename){
+        auto serialized_data = serialize();
+        writefile(filename.c_str(), serialized_data, size());
+        free(serialized_data);
+    }
+    void from_file(const string& filename){
+        size_t num_bytes = 0;
+        unsigned char * buffer = readfile_pointer<unsigned char>(filename.c_str(), num_bytes);
+        deserialize(buffer);
+        free(buffer);
+    }
+};
 // size of segment: default 4 MB
-const int seg_size = 1;//4 * 1024 * 1024;
+const int seg_size = 4 * 1024 * 1024;
 
 // encode the intra level components progressively
 /*
@@ -226,10 +296,8 @@ const int seg_size = 1;//4 * 1024 * 1024;
 @params level_exp: exponent of max level element
 */
 template <class T>
-vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp){
+vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
     vector<unsigned char*> intra_level_components;
-    // use 32 bitplanes, where the first one is used for sign
-    unsigned int num_level_component = 32;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -260,18 +328,15 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         // flush current encoding bits
         // encoders[i].flush();
         stream_flush(encoders[i]);
+        encoded_sizes.push_back(stream_size(encoders[i]));
         stream_close(encoders[i]);
     }
     return intra_level_components;
 }
 
 template <class T>
-T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
+T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
-    // use 32 bitplanes, where the first one is used for sign
-    int num_level_component = 32;
-    // reconstruct part of the level if requested
-    if((recompose_level_intra != 0) && (recompose_level_intra < num_level_component)) num_level_component = recompose_level_intra;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -350,10 +415,8 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
 @params level_exp: exponent of max level element
 */
 template <class T>
-vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data, size_t n, int level_exp){
+vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
     vector<unsigned char*> intra_level_components;
-    // use 32 bitplanes, where the first one is used for sign
-    int num_level_component = 32;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -381,31 +444,27 @@ vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data,
         }
     }
     // record level component size, bitplane size and huffman tree/codes
-    unsigned char * bitplane_metadata = (unsigned char *) malloc(n + num_level_component * sizeof(size_t) + sizeof(size_t));
-    size_t * bitplane_sizes = reinterpret_cast<size_t*>(bitplane_metadata);
-    for(int i=0; i<num_level_component; i++){
-        stream_flush(encoders[i]);
-        *bitplane_sizes++ = stream_size(encoders[i]);
-    }
-    unsigned char * bitplane_metadata_pos = bitplane_metadata + num_level_component * sizeof(size_t) + sizeof(size_t);
+    unsigned char * bitplane_metadata = (unsigned char *) malloc(n);
+    unsigned char * bitplane_metadata_pos = bitplane_metadata;
     auto encoder = SZ::HuffmanEncoder<int>();
     encoder.preprocess_encode(leading_zeros, 2*32);
     encoder.save(bitplane_metadata_pos);
     encoder.encode(leading_zeros, bitplane_metadata_pos);
     encoder.postprocess_encode();
-    size_t compressed_length = bitplane_metadata_pos - bitplane_metadata - num_level_component * sizeof(size_t) - sizeof(size_t);
+    size_t compressed_length = bitplane_metadata_pos - bitplane_metadata;
+    // record lzc component
+    encoded_sizes.push_back(compressed_length);
     cout << "Num_elements = " << n << endl;
     cout << "Size after Huffman = " << compressed_length << endl;
     // record huffman size
-    *bitplane_sizes = compressed_length;
     // unsigned char * lossless_compressed = NULL;
     // size_t lossless_length = sz_lossless_compress(ZSTD_COMPRESSOR, 3, bitplane_metadata, compressed_length, &lossless_compressed);
     // cout << "Size after lossless = " << lossless_length << endl;
     // size_t count = compressed_length;
     intra_level_components.push_back(bitplane_metadata);
     for(int i=0; i<num_level_component; i++){
-        // count += stream_size(encoders[i]);
-        // cout << "compression ratio = " << level_component_size * (i+1) * 1.0 / count << endl; 
+        stream_flush(encoders[i]);
+        encoded_sizes.push_back(stream_size(encoders[i]));
         intra_level_components.push_back(reinterpret_cast<unsigned char *>(stream_data(encoders[i])));
         stream_close(encoders[i]);
     }
@@ -413,12 +472,8 @@ vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data,
 }
 
 template <class T>
-T * progressive_decoding_with_lzc_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int recompose_level_intra=0){
+T * progressive_decoding_with_lzc_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
-    // use 32 bitplanes, where the first one is used for sign
-    int num_level_component = 32;
-    // reconstruct part of the level if requested
-    if((recompose_level_intra != 0) && (recompose_level_intra < num_level_component)) num_level_component = recompose_level_intra;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -526,62 +581,6 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
     }
 }
 
-template <class T>
-class Metadata{
-public:
-    Metadata(){}
-    Metadata(int target_level){
-        level_elements = vector<size_t>(target_level + 1);
-        level_error_bounds = vector<T>(target_level + 1);
-    }
-    vector<size_t> level_elements;    //
-    vector<T> level_error_bounds;     //
-    size_t size(){
-        return  sizeof(size_t) // number of levels
-                + level_elements.size() * sizeof(size_t) 
-                + level_error_bounds.size() * sizeof(T);
-    }
-    unsigned char * serialize(){
-        unsigned char * buffer = (unsigned char *) malloc(size());
-        unsigned char * buffer_pos = buffer;
-        size_t num_levels = level_elements.size();
-        *reinterpret_cast<size_t*>(buffer_pos) = num_levels;
-        buffer_pos += sizeof(size_t);
-        memcpy(buffer_pos, level_elements.data(), num_levels * sizeof(size_t));
-        buffer_pos += num_levels * sizeof(size_t);
-        memcpy(buffer_pos, level_error_bounds.data(), num_levels * sizeof(T));
-        buffer_pos += num_levels * sizeof(T);
-        return buffer;
-    }
-    void deserialize(const unsigned char * serialized_data){
-        const unsigned char * buffer_pos = serialized_data;
-        size_t num_levels = *reinterpret_cast<const size_t*>(buffer_pos);
-        buffer_pos += sizeof(size_t);
-        level_elements = vector<size_t>(reinterpret_cast<const size_t *>(buffer_pos), reinterpret_cast<const size_t *>(buffer_pos) + num_levels);
-        buffer_pos += num_levels * sizeof(size_t);
-        level_error_bounds = vector<T>(reinterpret_cast<const T *>(buffer_pos), reinterpret_cast<const T *>(buffer_pos) + num_levels);
-        buffer_pos += num_levels * sizeof(size_t);
-    }
-    void to_file(const string& filename){
-        auto serialized_data = serialize();
-        writefile(filename.c_str(), serialized_data, size());
-        free(serialized_data);
-    }
-    void from_file(const string& filename){
-        size_t num_bytes = 0;
-        unsigned char * buffer = readfile_pointer<unsigned char>(filename.c_str(), num_bytes);
-        deserialize(buffer);
-        for(int i=0; i<level_elements.size(); i++){
-            cout << level_elements[i] << " ";
-        }
-        cout << endl;
-        for(int i=0; i<level_elements.size(); i++){
-            cout << level_error_bounds[i] << " ";
-        }
-        cout << endl;
-        free(buffer);
-    }
-};
 // refactor level-centric decomposed data in hierarchical fashion
 /*
 @params data: decomposed data
@@ -591,7 +590,7 @@ public:
 @params with_compression: whether to use lossless compression on leading zeros
 */
 template <class T>
-vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, Metadata<T>& metadata, bool with_compression=false){
+vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, Metadata<T>& metadata){
     int max_level = log2(*min_element(dims.begin(), dims.end()));
     if(target_level > max_level) target_level = max_level;
     auto level_dims = init_levels(dims, target_level);
@@ -611,37 +610,38 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
         level_elements[i] = num_elements - pre_num_elements;
         pre_num_elements = num_elements;
     }
+    // init metadata sizes recorder
+    metadata.init_encoded_sizes();
     // record all level components
     vector<vector<unsigned char*>> level_components;
     vector<size_t> dims_dummy(dims.size(), 0);
-    unsigned char * buffer = (unsigned char *) malloc(level_elements[0] * sizeof(T));
-    interleave_level_coefficients(data, dims, level_dims[0], dims_dummy, reinterpret_cast<T*>(buffer), level_error_bounds[0]);
-    vector<unsigned char*> first_level;
-    first_level.push_back(buffer);
-    // first component is the coarsest representation of full precision
-    level_components.push_back(first_level);
-    for(int i=1; i<=target_level; i++){
+    for(int i=0; i<=target_level; i++){
         cout << "encoding level " << i << endl;
+        const vector<size_t>& prev_dims = (i == 0) ? dims_dummy : level_dims[i - 1];
         unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
         // extract components for each level
-        interleave_level_coefficients(data, dims, level_dims[i], level_dims[i - 1], reinterpret_cast<T*>(buffer), level_error_bounds[i]);
+        interleave_level_coefficients(data, dims, level_dims[i], prev_dims, reinterpret_cast<T*>(buffer), level_error_bounds[i]);
         if(level_elements[i] * sizeof(T) < seg_size){
             vector<unsigned char*> tiny_level;
             tiny_level.push_back(buffer);
             level_components.push_back(tiny_level);
+            metadata.components_sizes[i].push_back(level_elements[i] * sizeof(T));
         }
         else{
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
             // intra-level progressive encoding
-            if(with_compression){
-                auto intra_level_components = progressive_encoding_with_lzc_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp);
+            if(metadata.option == ENCODING_DEFAULT){
+                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
-            else{
-                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp);
+            else if(metadata.option == ENCODING_LZC){
+                auto intra_level_components = progressive_encoding_with_lzc_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
                 level_components.push_back(intra_level_components);
+            }
+            else {
+
             }
             // release extracted component
             free(buffer);
@@ -659,7 +659,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
 @params with_compression: whether to use lossless compression on leading zeros
 */
 template <class T>
-T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const Metadata<T>& metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims, const vector<bool>& with_compression){
+T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const Metadata<T>& metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims){
     auto level_dims = init_levels(dims, target_level);
     const vector<size_t>& level_elements = metadata.level_elements;
     const vector<T>& level_error_bounds = metadata.level_error_bounds;
@@ -670,10 +670,11 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
     }
     T * data = (T *) malloc(num_elements * sizeof(T));
     vector<size_t> dims_dummy(dims.size(), 0);
-    reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
-    for(int i=1; i<=target_recompose_level; i++){
+    // reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
+    for(int i=0; i<=target_recompose_level; i++){
+        const vector<size_t>& prev_dims = (i == 0) ? dims_dummy : level_dims[i - 1];
         if(level_elements[i] * sizeof(T) < seg_size){
-            reposition_level_coefficients(reinterpret_cast<T*>(level_components[i][0]), dims, level_dims[i], level_dims[i - 1], data);
+            reposition_level_coefficients(reinterpret_cast<T*>(level_components[i][0]), dims, level_dims[i], prev_dims, data);
         }
         else{
             cout << "decoding level " << i << ", size of components = " << level_components[i].size() << endl;
@@ -681,14 +682,19 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
             T * buffer = NULL;
+            int encoded_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
+            if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;
             // intra-level progressive decoding
-            if(with_compression[i]){
-                buffer = progressive_decoding_with_lzc_compression<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);
+            if(metadata.option == ENCODING_DEFAULT){
+                buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);                
+            }
+            else if(metadata.option == ENCODING_LZC){
+                buffer = progressive_decoding_with_lzc_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
             }
             else{
-                buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, intra_recompose_level[i]);                
+
             }
-            reposition_level_coefficients(buffer, dims, level_dims[i], level_dims[i - 1], data);
+            reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
             // release reconstructed component
             free(buffer);
         }

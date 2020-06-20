@@ -22,7 +22,8 @@ void test(string filename, int recompose_level_intra){
     frexp(max_val, &level_exp);
     cout << max_val << " " << level_exp << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
-    auto level_components = REFACTOR::progressive_encoding(data.data(), num_elements, level_exp);
+    vector<size_t> encoded_sizes;
+    auto level_components = REFACTOR::progressive_encoding(data.data(), num_elements, level_exp, 32, encoded_sizes);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     err = clock_gettime(CLOCK_REALTIME, &start);
