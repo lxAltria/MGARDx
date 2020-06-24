@@ -449,6 +449,8 @@ vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data,
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     cout << "level_component_size = " << level_component_size << endl;
+    const uint prec = 32;
+    const uint extra_lzc = prec - num_level_component;
     // TODO: change to unsigned char since max(LZ) < 32?
     vector<int> leading_zeros(n);
     vector<bitstream*> encoders;
@@ -465,7 +467,7 @@ vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data,
         unsigned int fp = sign ? -fix_point : +fix_point;
         stream_write_bit(encoders[0], sign);
         // record number of leading zeros
-        leading_zeros[i] = fp_uclz(fp);
+        leading_zeros[i] = fp_uclz(fp) - extra_lzc;
         for(int j=num_level_component - 1; j>=leading_zeros[i]; j--){
             stream_write_bit(encoders[j], fp & 1);
             fp >>= 1;
