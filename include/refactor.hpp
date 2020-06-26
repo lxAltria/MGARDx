@@ -647,17 +647,43 @@ void record_level_max_value(const T * data, size_t n, T& max_val){
         if(val > max_val) max_val = val;
     }
 }
-union FloatingInt{
+
+union FloatingInt32{
     float f;
     uint32_t i;
 };
+union FloatingInt64{
+    double f;
+    uint64_t i;
+};
+template <class T>
+vector<double> record_level_mse(const T * data, size_t n, int num_bitplanes);
+template <>
 vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes){
     // TODO: bitplanes < 23?
     if(num_bitplanes > 23) num_bitplanes = 23;
     vector<double> mse = vector<double>(num_bitplanes, 0);
-    FloatingInt fi;
+    FloatingInt32 fi;
     for(int i=0; i<n; i++){
-        float val = data[i];
+        auto val = data[i];
+        fi.f = val;
+        for(int b=num_bitplanes - 1; b>=0; b--){
+            uint shift = num_bitplanes - 1 - b;
+            // change b-th bit to 0
+            fi.i &= ~(1u << shift);
+            mse[b] += (data[i] - fi.f)*(data[i] - fi.f);
+        }
+    }
+    return mse;
+}
+template <>
+vector<double> record_level_mse(const double * data, size_t n, int num_bitplanes){
+    // TODO: bitplanes < 52?
+    if(num_bitplanes > 52) num_bitplanes = 52;
+    vector<double> mse = vector<double>(num_bitplanes, 0);
+    FloatingInt64 fi;
+    for(int i=0; i<n; i++){
+        auto val = data[i];
         fi.f = val;
         for(int b=num_bitplanes - 1; b>=0; b--){
             uint shift = num_bitplanes - 1 - b;
