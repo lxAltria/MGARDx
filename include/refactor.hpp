@@ -639,13 +639,19 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
     }
 }
 
+// compute maximum value in level
+/*
+@params data: level data
+@params n: number of level data points
+*/
 template <class T>
-void record_level_max_value(const T * data, size_t n, T& max_val){
-    max_val = 0;
+T record_level_max_value(const T * data, size_t n){
+    T max_val = 0;
     for(int i=0; i<n; i++){
         T val = fabs(data[i]);
         if(val > max_val) max_val = val;
     }
+    return max_val;
 }
 
 union FloatingInt32{
@@ -656,6 +662,12 @@ union FloatingInt64{
     double f;
     uint64_t i;
 };
+// compute mse indicator in level
+/*
+@params data: level data
+@params n: number of level data points
+@params num_bitplanes: number of encoded bitplanes
+*/
 template <class T>
 vector<double> record_level_mse(const T * data, size_t n, int num_bitplanes);
 template <>
@@ -736,7 +748,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
         unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
         // extract components for each level
         interleave_level_coefficients(data, dims, level_dims[i], prev_dims, reinterpret_cast<T*>(buffer));
-        record_level_max_value(reinterpret_cast<T*>(buffer), level_elements[i], level_error_bounds[i]);
+        level_error_bounds[i] = record_level_max_value(reinterpret_cast<T*>(buffer), level_elements[i]);
         if(level_elements[i] * sizeof(T) < seg_size){
             if(metadata.mse_estimator){
                 auto level_mse = vector<double>(1, 0);
