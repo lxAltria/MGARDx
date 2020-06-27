@@ -8,6 +8,7 @@
 #include <cmath>
 #include <algorithm>
 #include <bitset>
+#include <iomanip>
 #include "utils.hpp"
 // use ZFP-0.5.5 bitstream
 #include "bitstream.h"
@@ -17,76 +18,6 @@ namespace REFACTOR{
 using namespace std;
 using namespace MGARD;
 
-// BitEncoder and BitDecoder are modified from ZFP-0.3.1
-// Switched to ZFP-0.5.5 for better encoding performance
-// Keep original decoder because of performance
-/*******************************************/
-/*
-** Copyright (c) 2014, Lawrence Livermore National Security, LLC.
-** Produced at the Lawrence Livermore National Laboratory.
-** Written by Peter Lindstrom.
-** LLNL-CODE-663824.
-** All rights reserved.
-*/
-#if defined(__GNUC__)
-#elif defined(__IBMCPP__)
-  #include <builtins.h>
-#elif defined(_WIN64)
-  #include <intrin.h>
-  #ifndef HAVE_C99_MATH
-    // for old versions of MSVC that do not have C99 math support
-    inline long int lrint(double x) { return  (long int)x; }
-    inline long long int llrint(double x) { return (long long int)x; }
-  #endif
-#else
-  #error "compiler not supported"
-#endif
-
-inline uint fp_uclz(uint32 x)
-{
-#if defined(__GNUC__)
-  return __builtin_clz(x);
-#elif defined(__IBMCPP__)
-  return __cntlz4(x);
-#elif defined(_WIN64)
-  unsigned long n;
-  _BitScanReverse(&n, x);
-  return 31 - n;
-#endif
-}
-
-inline uint fp_ufls(uint32 x){
-#if defined(__GNUC__) || defined(_WIN64)
-  return x ? CHAR_BIT * sizeof(x) - fp_uclz(x) : 0;
-#elif defined(__IBMCPP__)
-  return CHAR_BIT * sizeof(x) - fp_uclz(x);
-#endif
-}
-// A class to write data bit by bit
-// Currently does not consider the case when encoding size is larger than capacity
-#ifdef __GNUC__
-  #define align_(n) __attribute__((aligned(n)))
-#else
-  #define align_(n)
-#endif
-class BitEncoder{
-protected:
-    bitstream* stream = NULL;  
-public:
-    BitEncoder(unsigned char * array, size_t size){
-        stream = stream_open(array, size);
-    }
-    void close(){
-        stream_close(stream);
-    }
-    void encode(bool b){
-        stream_write_bit(stream, b);
-    }
-    void flush(){
-        stream_flush(stream);
-    }
-    size_t size(){ return stream_size(stream); }
-};
 // A class to read data bit by bit
 // Currently does not consider the case when decoding size is larger than capacity
 class BitDecoder{
@@ -207,7 +138,7 @@ public:
     vector<vector<double>> mse;         // mse[i][j]: mse of level i using the first (j+1) bit-planes
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
-    int encoded_bitplanes = 24;
+    int encoded_bitplanes = 32;
 
     void init_encoded_sizes(){
         components_sizes.clear();
@@ -307,29 +238,54 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     cout << "level_component_size = " << level_component_size << endl;
-    vector<BitEncoder> encoders;
-    for(int i=0; i<num_level_component; i++){
+    vector<unsigned char *> byte_encoders;
+    for(int i=0; i<32; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
         intra_level_components.push_back(buffer);
-        encoders.push_back(BitEncoder(buffer, level_component_size));
-    }
-    for(int i=0; i<n; i++){
-        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
-        long int fix_point = (long int) cur_data;
-        // encode each bit of the data for each level component
-        bool sign = data[i] < 0;
-        unsigned int fp = sign ? -fix_point : +fix_point;
-        encoders[0].encode(sign);
-        for(int j=num_level_component - 1; j>0; j--){
-            encoders[j].encode(fp & 1);
-            fp >>= 1;
+        byte_encoders.push_back(buffer);
+    }    
+    int index_data = 0;
+    int index_buffer = 0;
+    for(int i=0; i<n/8; i++){
+        unsigned char tmp[32] = {0};
+        // unsigned int tmp_fp[8] = {0};
+        for(int j=0; j<8; j++){
+            T val = data[index_data ++];
+            T cur_data = ldexp(val, num_level_component - 1 - level_exp);
+            long int fix_point = (long int) cur_data;
+            unsigned int sign = val < 0;
+            unsigned int fp = sign ? -fix_point : +fix_point;
+            tmp[0] += sign << j;
+            for(int k=30; k>=0; k--){
+                tmp[31 - k] += ((fp >> k) & 1) << j;
+            }
         }
+        for(int k=0; k<32; k++){
+            byte_encoders[k][index_buffer] = tmp[k];
+        }
+        index_buffer ++;
     }
-    for(int i=0; i<num_level_component; i++){
-        // flush current encoding bits
-        encoders[i].flush();
-        encoded_sizes.push_back(encoders[i].size());
-        encoders[i].close();
+    {
+        int rest = n % 8;
+        unsigned char tmp[32] = {0};
+        for(int j=0; j<rest; j++){
+            T val = data[index_data ++];
+            T cur_data = ldexp(val, num_level_component - 1 - level_exp);
+            long int fix_point = (long int) cur_data;
+            unsigned int sign = val < 0;
+            unsigned int fp = sign ? -fix_point : +fix_point;
+            tmp[0] += sign << j;
+            for(int k=30; k>=0; k--){
+                tmp[31 - k] += ((fp >> k) & 1) << j;
+            }
+        }
+        for(int k=0; k<32; k++){
+            byte_encoders[k][index_buffer] = tmp[k];
+        }
+        index_buffer ++;
+    }
+    for(int k=0; k<32; k++){
+        encoded_sizes.push_back(index_buffer);
     }
     return intra_level_components;
 }
@@ -427,110 +383,6 @@ T * progressive_decoding_with_rle_compression(const vector<unsigned char*>& leve
             fp = (fp << 1) + current_bit;
         }
         long int fix_point = fp;
-        if(sign) fix_point = -fix_point;
-        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
-        data_pos ++;
-    }
-    return level_data;
-}
-// encode the intra level components progressively, with lossless compression on leading zeros
-/*
-@params data: coefficient data
-@params n: number of coefficients in current level
-@params level_exp: exponent of max level element
-*/
-template <class T>
-vector<unsigned char*> progressive_encoding_with_lzc_compression(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
-    vector<unsigned char*> intra_level_components;
-    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
-    cout << "level element = " << n << endl;
-    cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
-    const uint prec = 32;
-    const uint extra_lzc = prec - num_level_component;
-    // TODO: change to unsigned char since max(LZ) < 32?
-    vector<int> leading_zeros(n);
-    vector<BitEncoder> encoders;
-    unsigned char * bitplane_metadata = (unsigned char *) malloc(n);
-    intra_level_components.push_back(bitplane_metadata);
-    for(int i=0; i<num_level_component; i++){
-        unsigned char * buffer = (unsigned char *) malloc(level_component_size);
-        intra_level_components.push_back(buffer);
-        encoders.push_back(BitEncoder(buffer, level_component_size));
-    }
-    for(int i=0; i<n; i++){
-        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
-        long int fix_point = (long int) cur_data;
-        // encode each bit of the data for each level component
-        // encode sign
-        bool sign = data[i] < 0;
-        unsigned int fp = sign ? -fix_point : +fix_point;
-        encoders[0].encode(sign);
-        // record number of leading zeros
-        leading_zeros[i] = fp_uclz(fp) - extra_lzc;
-        for(int j=num_level_component - 1; j>=leading_zeros[i]; j--){
-            encoders[j].encode(fp & 1);
-            fp >>= 1;
-        }
-    }
-    // record level component size, bitplane size and huffman tree/codes
-    unsigned char * bitplane_metadata_pos = bitplane_metadata;
-    auto encoder = SZ::HuffmanEncoder<int>();
-    encoder.preprocess_encode(leading_zeros, 2*32);
-    encoder.save(bitplane_metadata_pos);
-    encoder.encode(leading_zeros, bitplane_metadata_pos);
-    encoder.postprocess_encode();
-    size_t compressed_length = bitplane_metadata_pos - bitplane_metadata;
-    // record lzc component
-    encoded_sizes.push_back(compressed_length);
-    cout << "Num_elements = " << n << endl;
-    cout << "Size after Huffman = " << compressed_length << endl;
-    // record huffman size
-    // unsigned char * lossless_compressed = NULL;
-    // size_t lossless_length = sz_lossless_compress(ZSTD_COMPRESSOR, 3, bitplane_metadata, compressed_length, &lossless_compressed);
-    // cout << "Size after lossless = " << lossless_length << endl;
-    size_t count = compressed_length;
-    for(int i=0; i<num_level_component; i++){
-        encoders[i].flush();
-        count += encoders[i].size();
-        cout << "Ratio of reading " << i << " bitplanes: " << ((i+1) * (n / 8)) * 1.0 / count << endl;
-        encoded_sizes.push_back(encoders[i].size());
-        encoders[i].close();
-    }
-    return intra_level_components;
-}
-
-template <class T>
-T * progressive_decoding_with_lzc_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
-    T * level_data = (T *) malloc(n * sizeof(T));
-    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
-    cout << "level element = " << n << endl;
-    cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
-    // decode leading zeros
-    const unsigned char * bitplane_metadata_pos = level_components[0];
-    auto encoder = SZ::HuffmanEncoder<int>();
-    // remaining_length = n for placeholder (may not be accurate)
-    size_t remaining_length = n;
-    encoder.load(bitplane_metadata_pos, remaining_length);
-    auto leading_zeros = encoder.decode(bitplane_metadata_pos, n);
-    encoder.postprocess_decode();
-    // decode data
-    vector<BitDecoder> decoders;
-    for(int i=0; i<num_level_component; i++){
-        decoders.push_back(BitDecoder(level_components[i + 1], level_component_size));
-    }
-    T * data_pos = level_data;
-    for(int i=0; i<n; i++){
-        // decode each bit of the data for each level component
-        // decode sign
-        bool sign = decoders[0].decode();
-        unsigned int fp = 0;
-        for(int j=leading_zeros[i]; j<num_level_component; j++){
-            unsigned int current_bit = decoders[j].decode();
-            fp = (fp << 1) + current_bit;
-        }
-        signed int fix_point = fp;
         if(sign) fix_point = -fix_point;
         *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
         data_pos ++;
@@ -636,27 +488,58 @@ union FloatingInt64{
 @params num_bitplanes: number of encoded bitplanes
 */
 template <class T>
-vector<double> record_level_mse(const T * data, size_t n, int num_bitplanes);
+vector<double> record_level_mse(const T * data, size_t n, int num_bitplanes, int level_exp);
 template <>
-vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes){
+vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes, int level_exp){
+    // if(n < 21786949){
+    //     return vector<double>();
+    // }
     // TODO: bitplanes < 23?
     if(num_bitplanes > 23) num_bitplanes = 23;
-    vector<double> mse = vector<double>(num_bitplanes, 0);
+    vector<double> mse = vector<double>(num_bitplanes + 1, 0);
+    vector<double> max_e = vector<double>(num_bitplanes + 1, 0);
     FloatingInt32 fi;
     for(int i=0; i<n; i++){
+        // if(i == 5381319){
+        //     cout << setprecision(10) << data[i] << endl;
+        // }
+        int data_exp = 0;
+        frexp(data[i], &data_exp);
         auto val = data[i];
         fi.f = val;
-        for(int b=num_bitplanes - 1; b>=0; b--){
-            uint shift = num_bitplanes - 1 - b;
+        int exp_diff = level_exp - data_exp;
+        // zeroing out unrecorded bitplanes
+        for(int b=0; b<exp_diff; b++){
+            fi.i &= ~(1u << b);            
+        }
+        int index = num_bitplanes;
+        for(int b=exp_diff; b<num_bitplanes; b++){
             // change b-th bit to 0
-            fi.i &= ~(1u << shift);
-            mse[b] += (data[i] - fi.f)*(data[i] - fi.f);
+            fi.i &= ~(1u << b);
+            mse[index] += (data[i] - fi.f)*(data[i] - fi.f);
+            // if(i == 5381319){
+            //     cout << fi.f << endl;
+            // }
+            float err = fabs(data[i] - fi.f);
+            if(err > max_e[index]) max_e[index] = err;
+            index --;
+        }
+        while(index >= 0){
+            mse[index] += data[i] * data[i];
+            if(fabs(data[i]) > max_e[index]) max_e[index] = fabs(data[i]);
+            index --;
         }
     }
+    cout << "\nMAX E in level" << setprecision(4) << endl;
+    for(int i=0; i<max_e.size(); i++){
+        cout << i << ":" << max_e[i] << " ";
+    }
+    cout << endl;
+    // exit(0);
     return mse;
 }
 template <>
-vector<double> record_level_mse(const double * data, size_t n, int num_bitplanes){
+vector<double> record_level_mse(const double * data, size_t n, int num_bitplanes, int level_exp){
     // TODO: bitplanes < 52?
     if(num_bitplanes > 52) num_bitplanes = 52;
     vector<double> mse = vector<double>(num_bitplanes, 0);
@@ -705,7 +588,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
     // init metadata sizes recorder
     metadata.init_encoded_sizes();
     // turn on mse
-    metadata.mse_estimator = true;
+    // metadata.mse_estimator = true;
     // record all level components
     vector<vector<unsigned char*>> level_components;
     vector<size_t> dims_dummy(dims.size(), 0);
@@ -715,6 +598,10 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
         unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
         // extract components for each level
         interleave_level_coefficients(data, dims, level_dims[i], prev_dims, reinterpret_cast<T*>(buffer));
+
+        string outfile("decomposed_level_");
+        writefile((outfile + to_string(i) + ".dat").c_str(), reinterpret_cast<T*>(buffer), level_elements[i]);
+
         level_error_bounds[i] = record_level_max_value(reinterpret_cast<T*>(buffer), level_elements[i]);
         if(level_elements[i] * sizeof(T) < seg_size){
             if(metadata.mse_estimator){
@@ -727,25 +614,29 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             metadata.components_sizes[i].push_back(level_elements[i] * sizeof(T));
         }
         else{
-            if(metadata.mse_estimator){
-                auto level_mse = record_level_mse(data, level_elements[i], metadata.encoded_bitplanes - 1);
-                metadata.mse.push_back(level_mse);
-            }
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
+            cout << "level " << i << " max err = " << level_error_bounds[i] << ", exp = " << level_exp << endl;
+            if(metadata.mse_estimator){
+                auto level_mse = record_level_mse(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes - 1, level_exp);
+                metadata.mse.push_back(level_mse);
+            }
             // intra-level progressive encoding
             if(metadata.option == ENCODING_DEFAULT){
+                // struct timespec start, end;
+                // int err = clock_gettime(CLOCK_REALTIME, &start);
                 auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
                 level_components.push_back(intra_level_components);
+                // err = clock_gettime(CLOCK_REALTIME, &end);
+                // cout << "Byteplane encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
                 auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_LZC){
-                auto intra_level_components = progressive_encoding_with_lzc_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
-                level_components.push_back(intra_level_components);
+
             }
             // release extracted component
             free(buffer);
@@ -778,7 +669,7 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
         auto& mse = metadata.mse;
         for(int i=0; i<mse.size(); i++){
             for(int j=0; j<mse[i].size(); j++){
-                cout << mse[i][j] << " ";
+                cout << j << ":" << mse[i][j] << " ";
             }
             cout <<endl;
         }
@@ -798,19 +689,31 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             frexp(level_error_bounds[i], &level_exp);
             T * buffer = NULL;
             int encoded_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
-            if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;
-            total_mse += metadata.mse[i][encoded_bitplanes];
+            if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;            
+            // cout << "encoded_bitplanes = " << encoded_bitplanes << endl;
+            // cout << "MSE: " << i << " " << encoded_bitplanes - 1 << endl; 
+            // cout << total_mse << " + " << metadata.mse[i][encoded_bitplanes - 1] << " = ";
+            // total_mse += metadata.mse[i][encoded_bitplanes - 1];
+            // cout << total_mse << endl;
             // intra-level progressive decoding
             if(metadata.option == ENCODING_DEFAULT){
+                // struct timespec start, end;
+                // int err = clock_gettime(CLOCK_REALTIME, &start);
                 buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);                
+                // err = clock_gettime(CLOCK_REALTIME, &end);
+                // cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
                 buffer = progressive_decoding_with_rle_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
             }
             else if(metadata.option == ENCODING_LZC){
-                buffer = progressive_decoding_with_lzc_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
+
             }
             reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
+
+            string outfile("reconstructed_level_");
+            writefile((outfile + to_string(i) + ".dat").c_str(), reinterpret_cast<T*>(buffer), level_elements[i]);
+
             // release reconstructed component
             free(buffer);
         }
