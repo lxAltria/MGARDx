@@ -10,8 +10,7 @@
 #include <bitset>
 #include <iomanip>
 #include "utils.hpp"
-// use ZFP-0.5.5 bitstream
-#include "bitstream.h"
+#include "data_org.hpp"
 
 namespace REFACTOR{
 
@@ -239,13 +238,14 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
     cout << "num_level_component = " << num_level_component << endl;
     cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
-    for(int i=0; i<32; i++){
+    for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
         intra_level_components.push_back(buffer);
         byte_encoders.push_back(buffer);
     }    
     int index_data = 0;
     int index_buffer = 0;
+    const int num_bitplanes = num_level_component;
     for(int i=0; i<n/8; i++){
         unsigned char tmp[32] = {0};
         // unsigned int tmp_fp[8] = {0};
@@ -256,11 +256,11 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
             unsigned int sign = val < 0;
             unsigned int fp = sign ? -fix_point : +fix_point;
             tmp[0] += sign << j;
-            for(int k=30; k>=0; k--){
-                tmp[31 - k] += ((fp >> k) & 1) << j;
+            for(int k=num_bitplanes - 2; k>=0; k--){
+                tmp[num_bitplanes - 1 - k] += ((fp >> k) & 1) << j;
             }
         }
-        for(int k=0; k<32; k++){
+        for(int k=0; k<num_bitplanes; k++){
             byte_encoders[k][index_buffer] = tmp[k];
         }
         index_buffer ++;
@@ -275,20 +275,21 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
             unsigned int sign = val < 0;
             unsigned int fp = sign ? -fix_point : +fix_point;
             tmp[0] += sign << j;
-            for(int k=30; k>=0; k--){
-                tmp[31 - k] += ((fp >> k) & 1) << j;
+            for(int k=num_bitplanes - 2; k>=0; k--){
+                tmp[num_bitplanes - 1 - k] += ((fp >> k) & 1) << j;
             }
         }
-        for(int k=0; k<32; k++){
+        for(int k=0; k<num_bitplanes; k++){
             byte_encoders[k][index_buffer] = tmp[k];
         }
         index_buffer ++;
     }
-    for(int k=0; k<32; k++){
+    for(int k=0; k<num_bitplanes; k++){
         encoded_sizes.push_back(index_buffer);
     }
     return intra_level_components;
 }
+
 
 template <class T>
 T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
@@ -336,6 +337,8 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
     vector<unsigned char*> intra_level_components;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
+    struct timespec start, end;
+    int err = clock_gettime(CLOCK_REALTIME, &start);        
     vector<RunlengthEncoder> encoders;
     for(int i=0; i<num_level_component; i++){
         encoders.push_back(RunlengthEncoder());
@@ -352,13 +355,17 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
             fp >>= 1;
         }
     }
+    err = clock_gettime(CLOCK_REALTIME, &end);
+    cout << "RLE encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     size_t count = 0;
     for(int i=0; i<num_level_component; i++){
         encoders[i].flush();
+        err = clock_gettime(CLOCK_REALTIME, &start);        
         intra_level_components.push_back(encoders[i].save());
+        err = clock_gettime(CLOCK_REALTIME, &end);
         encoded_sizes.push_back(encoders[i].size());
         count += encoders[i].size();
-        cout << "Ratio of reading " << i << " bitplanes: " << ((i+1) * (n / 8)) * 1.0 / count << endl;
+        cout << "The " << i << "-th bitplanes encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << " s, ratio = " << (n / 8) * 1.0 /encoders[i].size()<< " , progressive ratio = " << ((i+1) * (n / 8)) * 1.0 / count << endl;
     }
     return intra_level_components;
 }
@@ -399,21 +406,6 @@ T * progressive_decoding_with_rle_compression(const vector<unsigned char*>& leve
 @params max_err: max error in current level
 */
 template <class T>
-void interleave_level_coefficients_3d(const T * data, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * buffer){
-    size_t dim0_offset = dims[1] * dims[2];
-    size_t dim1_offset = dims[2];
-    size_t count = 0;
-    for(int i=0; i<dims_fine[0]; i++){
-        for(int j=0; j<dims_fine[1]; j++){
-            for(int k=0; k<dims_fine[2]; k++){
-                if((i < dims_coasre[0]) && (j < dims_coasre[1]) && (k < dims_coasre[2]))
-                    continue;
-                buffer[count ++] = data[i*dim0_offset + j*dim1_offset + k];
-            }
-        }
-    }
-}
-template <class T>
 void interleave_level_coefficients(const T * data, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * buffer){
     switch(dims.size()){
         case 3:
@@ -432,21 +424,6 @@ void interleave_level_coefficients(const T * data, const vector<size_t>& dims, c
 @params dims_coarse: coarse level dimensions
 @params data: decomposed data
 */
-template <class T>
-void reposition_level_coefficients_3d(const T * buffer, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * data){
-    size_t dim0_offset = dims[1] * dims[2];
-    size_t dim1_offset = dims[2];
-    int count = 0;
-    for(int i=0; i<dims_fine[0]; i++){
-        for(int j=0; j<dims_fine[1]; j++){
-            for(int k=0; k<dims_fine[2]; k++){
-                if((i < dims_coasre[0]) && (j < dims_coasre[1]) && (k < dims_coasre[2]))
-                    continue;
-                data[i*dim0_offset + j*dim1_offset + k] = buffer[count ++];
-            }
-        }
-    }
-}
 template <class T>
 void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * data){
     switch(dims.size()){
@@ -491,18 +468,12 @@ template <class T>
 vector<double> record_level_mse(const T * data, size_t n, int num_bitplanes, int level_exp);
 template <>
 vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes, int level_exp){
-    // if(n < 21786949){
-    //     return vector<double>();
-    // }
     // TODO: bitplanes < 23?
     if(num_bitplanes > 23) num_bitplanes = 23;
     vector<double> mse = vector<double>(num_bitplanes + 1, 0);
-    vector<double> max_e = vector<double>(num_bitplanes + 1, 0);
+    // vector<double> max_e = vector<double>(num_bitplanes + 1, 0);
     FloatingInt32 fi;
     for(int i=0; i<n; i++){
-        // if(i == 5381319){
-        //     cout << setprecision(10) << data[i] << endl;
-        // }
         int data_exp = 0;
         frexp(data[i], &data_exp);
         auto val = data[i];
@@ -517,43 +488,31 @@ vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes,
             // change b-th bit to 0
             fi.i &= ~(1u << b);
             mse[index] += (data[i] - fi.f)*(data[i] - fi.f);
-            // if(i == 5381319){
-            //     cout << fi.f << endl;
-            // }
-            float err = fabs(data[i] - fi.f);
-            if(err > max_e[index]) max_e[index] = err;
+            // float err = fabs(data[i] - fi.f);
+            // if(err > max_e[index]) max_e[index] = err;
             index --;
         }
         while(index >= 0){
             mse[index] += data[i] * data[i];
-            if(fabs(data[i]) > max_e[index]) max_e[index] = fabs(data[i]);
+            // if(fabs(data[i]) > max_e[index]) max_e[index] = fabs(data[i]);
             index --;
         }
     }
-    cout << "\nMAX E in level" << setprecision(4) << endl;
-    for(int i=0; i<max_e.size(); i++){
-        cout << i << ":" << max_e[i] << " ";
-    }
-    cout << endl;
-    // exit(0);
+    // cout << "\nMAX E in level" << setprecision(4) << endl;
+    // for(int i=0; i<max_e.size(); i++){
+    //     cout << i << ":" << max_e[i] << " ";
+    // }
+    // cout << endl;
     return mse;
 }
 template <>
 vector<double> record_level_mse(const double * data, size_t n, int num_bitplanes, int level_exp){
+    cout << "Not implemented yet...\nExit -1.\n";
+    exit(-1);
     // TODO: bitplanes < 52?
     if(num_bitplanes > 52) num_bitplanes = 52;
     vector<double> mse = vector<double>(num_bitplanes, 0);
-    FloatingInt64 fi;
-    for(int i=0; i<n; i++){
-        auto val = data[i];
-        fi.f = val;
-        for(int b=num_bitplanes - 1; b>=0; b--){
-            uint shift = num_bitplanes - 1 - b;
-            // change b-th bit to 0
-            fi.i &= ~(1u << shift);
-            mse[b] += (data[i] - fi.f)*(data[i] - fi.f);
-        }
-    }
+    // FloatingInt64 fi;
     return mse;
 }
 // refactor level-centric decomposed data in hierarchical fashion
@@ -624,12 +583,12 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             }
             // intra-level progressive encoding
             if(metadata.option == ENCODING_DEFAULT){
-                // struct timespec start, end;
-                // int err = clock_gettime(CLOCK_REALTIME, &start);
+                struct timespec start, end;
+                int err = clock_gettime(CLOCK_REALTIME, &start);
                 auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
                 level_components.push_back(intra_level_components);
-                // err = clock_gettime(CLOCK_REALTIME, &end);
-                // cout << "Byteplane encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+                err = clock_gettime(CLOCK_REALTIME, &end);
+                cout << "Byteplane encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
                 auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
