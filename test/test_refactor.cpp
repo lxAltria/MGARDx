@@ -30,12 +30,11 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     REFACTOR::Metadata<T> metadata(target_level);
     // whether to enable lossless compression on leading zeros
     metadata.option = option;
-    // metadata.option = ENCODING_LZC;
+    // metadata.option = ENCODING_HYBRID;
     auto components = REFACTOR::level_centric_data_refactor(data.data(), target_level, dims, metadata);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Refactor time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    // write metadat
-    // MGARD::writefile(string("refactor_data/metadata").c_str(), metadata, (target_level + 1) * (sizeof(size_t) + sizeof(T)));
+    // write metadata
     metadata.to_file(string("refactor_data/metadata").c_str());
     const vector<size_t>& level_elements = metadata.level_elements;
     const vector<T>& level_error_bounds = metadata.level_error_bounds;    
@@ -53,11 +52,6 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
         const vector<size_t>& encoded_sizes = metadata.components_sizes[i];
         auto num_components = components[i].size();
         int p = 0;
-        if(metadata.option == ENCODING_LZC){
-            MGARD::writefile<unsigned char>(("refactor_data/level_" + to_string(target_level - i) + "_metadata").c_str(), components[i][0], encoded_sizes[0]);
-            free(components[i][0]);
-            num_components --, p ++;
-        }
         for(int j=0; j<num_components; j++, p++){
             string prefix = (j < 10) ? "0" : "";
             MGARD::writefile<unsigned char>(("refactor_data/level_" + to_string(target_level - i) + "_" + prefix + to_string(j)).c_str(), components[i][p], encoded_sizes[p]);
@@ -73,21 +67,15 @@ T * test_reposition(const vector<size_t>& dims, int target_recompose_level, vect
     REFACTOR::Metadata<T> metadata;
     metadata.from_file(string("refactor_data/metadata").c_str());
     int target_level = metadata.level_elements.size() - 1;
-    // auto intra_level_components = MGARD::readfile_pointer<unsigned char>(string("refactor_data/metadata").c_str(), tmp_size);
-    vector<int> num_intra_level_components(target_level + 1, 24);
+    vector<int> num_intra_level_components(target_level + 1, 16);
     // num_intra_level_components[0] = 16;
-    num_intra_level_components[1] = 12;
+    // num_intra_level_components[1] = 12;
     // num_intra_level_components[2] = 24;
     // num_intra_level_components[3] = 16;
     target_recompose_level = target_level - target_recompose_level;
     for(int i=0; i<=target_recompose_level; i++){
         size_t tmp_size = 0;
         vector<unsigned char*> level_component;
-        if(metadata.option == ENCODING_LZC){
-            // push back metadata
-            auto intra_level_metadata = MGARD::readfile_pointer<unsigned char>(("refactor_data/level_" + to_string(target_level - i) + "_metadata").c_str(), tmp_size);
-            level_component.push_back(intra_level_metadata);            
-        }
         for(int j=0; j<num_intra_level_components[i]; j++){
             // push back components
             string prefix = (j < 10) ? "0" : "";
