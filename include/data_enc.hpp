@@ -339,9 +339,10 @@ T * progressive_decoding_with_rle_compression(const vector<unsigned char*>& leve
 @params level_exp: exponent of max level element
 @params num_level_component: number of encoded bitplanes
 @params encoded_sizes: size of encoded data
+@params bitplane_indicator: indicator for encoder selection
 */
 template <class T>
-vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
+vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
@@ -352,6 +353,8 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
         intra_level_components.push_back(buffer);
         byte_encoders.push_back(buffer);
+        // set indicator
+        bitplane_indicator.push_back(0);
     }    
     size_t buffer_index = byte_wise_direct_encoding(data, n, level_exp, num_level_component, byte_encoders);
     for(int k=0; k<num_level_component; k++){
@@ -369,26 +372,41 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
             }
         }
         rle.flush();
-        if(true){
+        if(k){
             free(intra_level_components[k]);
+            // change content of level components, encoded size and indicator
             intra_level_components[k] = rle.save();
             encoded_sizes[k] = rle.size();
+            bitplane_indicator[k] = 1;
+            err = clock_gettime(CLOCK_REALTIME, &end);
+            cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+            cout << "s, encoded size = " << rle.size() << endl;
         }
-        err = clock_gettime(CLOCK_REALTIME, &end);
-        cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
-        cout << "s, encoded size = " << rle.size() << endl;
     }
     return intra_level_components;
 }
 
 template <class T>
-T * progressive_hybrid_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
+T * progressive_hybrid_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     vector<DecoderInterface*> decoders;
     for(int i=0; i<num_level_component; i++){
-        decoders.push_back(new RunlengthDecoder());
+        switch(bitplane_indicator[i]){
+            case 0:{
+                decoders.push_back(new BitDecoder());
+                break;
+            }
+            case 1:{
+                decoders.push_back(new RunlengthDecoder());
+                break;
+            }
+            default:{
+                cerr << "Only direct encoding (indicator = 0) and RLE (indicator = 1) are supported\n";
+                exit(0);
+            }
+        }
         decoders[i]->load(level_components[i]);
     }
     T * data_pos = level_data;

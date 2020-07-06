@@ -20,7 +20,7 @@ using namespace std;
 using namespace MGARD;
 
 // size of segment: default 4 MB
-const int seg_size = 4 * 1024 * 1024;
+const int seg_size = 4;
 
 // metadata for refactored data
 template <class T>
@@ -35,6 +35,7 @@ public:
     vector<T> level_error_bounds;     // max errors in each multigrid level
     vector<vector<size_t>> components_sizes; // size of each component in each level
     vector<vector<double>> mse;         // mse[i][j]: mse of level i using the first (j+1) bit-planes
+    vector<vector<unsigned char>> bitplane_indictors;   // indicator for bitplane encoding
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
     int encoded_bitplanes = 32;
@@ -45,12 +46,21 @@ public:
             components_sizes.push_back(vector<size_t>());
         }
     }
+    void init_bitplane_indicators(){
+        bitplane_indictors.clear();
+        for(int i=0; i<level_elements.size(); i++){
+            bitplane_indictors.push_back(vector<unsigned char>());
+        }        
+    }
     size_t size(){
         size_t metadata_size = 
                 sizeof(int) + sizeof(int) + sizeof(size_t) // option + encoded_bitplanes + number of levels
                 + level_elements.size() * sizeof(size_t) 
                 + level_error_bounds.size() * sizeof(T)
                 + sizeof(char);
+        for(int i=0; i<bitplane_indictors.size(); i++){
+            metadata_size += sizeof(size_t) + bitplane_indictors[i].size() * sizeof(unsigned char);
+        }
         if(mse_estimator) {
             for(int i=0; i<mse.size(); i++){
                 metadata_size += sizeof(size_t) + mse[i].size() * sizeof(double);
@@ -74,8 +84,14 @@ public:
         buffer_pos += num_levels * sizeof(T);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
+        for(int i=0; i<bitplane_indictors.size(); i++){
+            *reinterpret_cast<size_t*>(buffer_pos) = bitplane_indictors[i].size();
+            buffer_pos += sizeof(size_t);
+            memcpy(buffer_pos, bitplane_indictors[i].data(), bitplane_indictors[i].size() * sizeof(unsigned char));
+            buffer_pos += bitplane_indictors[i].size() * sizeof(unsigned char);
+        }
         if(mse_estimator){
-            for(int i=0; i<level_elements.size(); i++){
+            for(int i=0; i<mse.size(); i++){
                 *reinterpret_cast<size_t*>(buffer_pos) = mse[i].size();
                 buffer_pos += sizeof(size_t);
                 memcpy(buffer_pos, mse[i].data(), mse[i].size() * sizeof(double));
@@ -98,6 +114,14 @@ public:
         buffer_pos += num_levels * sizeof(T);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
+        bitplane_indictors.clear();
+        for(int i=0; i<level_elements.size(); i++){
+            size_t num = *reinterpret_cast<const size_t*>(buffer_pos);
+            buffer_pos += sizeof(size_t);
+            vector<unsigned char> level_indicator = vector<unsigned char>(buffer_pos, buffer_pos + num);
+            bitplane_indictors.push_back(level_indicator);
+            buffer_pos += num * sizeof(unsigned char);
+        }
         if(mse_estimator){
             mse.clear();
             for(int i=0; i<level_elements.size(); i++){
@@ -190,6 +214,8 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
         level_elements[i] = num_elements - pre_num_elements;
         pre_num_elements = num_elements;
     }
+    // init bitplane indicators
+    metadata.init_bitplane_indicators();
     // init metadata sizes recorder
     metadata.init_encoded_sizes();
     // turn on mse
@@ -241,7 +267,8 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_HYBRID){
-                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
+                vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
+                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
             }
             // release extracted component
@@ -313,7 +340,8 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
                 buffer = progressive_decoding_with_rle_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
             }
             else if(metadata.option == ENCODING_HYBRID){
-                buffer = progressive_hybrid_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
+                const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
+                buffer = progressive_hybrid_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
             }
             reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
 
