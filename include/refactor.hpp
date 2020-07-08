@@ -33,17 +33,19 @@ public:
     }
     vector<size_t> level_elements;    // number of elements in each multigrid level
     vector<T> level_error_bounds;     // max errors in each multigrid level
-    vector<vector<size_t>> components_sizes; // size of each component in each level
+    vector<vector<size_t>> component_sizes; // size of each component in each level
+    vector<vector<double>> max_e;         // max_e[i][j]: max error of level i using the first (j+1) bit-planes
     vector<vector<double>> mse;         // mse[i][j]: mse of level i using the first (j+1) bit-planes
     vector<vector<unsigned char>> bitplane_indictors;   // indicator for bitplane encoding
+    bool max_e_estimator = false;
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
     int encoded_bitplanes = 32;
 
     void init_encoded_sizes(){
-        components_sizes.clear();
+        component_sizes.clear();
         for(int i=0; i<level_elements.size(); i++){
-            components_sizes.push_back(vector<size_t>());
+            component_sizes.push_back(vector<size_t>());
         }
     }
     void init_bitplane_indicators(){
@@ -54,12 +56,17 @@ public:
     }
     size_t size(){
         size_t metadata_size = 
-                sizeof(int) + sizeof(int) + sizeof(size_t) // option + encoded_bitplanes + number of levels
-                + level_elements.size() * sizeof(size_t) 
-                + level_error_bounds.size() * sizeof(T)
-                + sizeof(char);
+                sizeof(int) + sizeof(int) + sizeof(size_t)  // option + encoded_bitplanes + number of levels
+                + level_elements.size() * sizeof(size_t)    // level_elements
+                + level_error_bounds.size() * sizeof(T)     // level_eb
+                + sizeof(unsigned char) + sizeof(unsigned char); // estimator flags
         for(int i=0; i<bitplane_indictors.size(); i++){
             metadata_size += sizeof(size_t) + bitplane_indictors[i].size() * sizeof(unsigned char);
+        }
+        if(max_e_estimator) {
+            for(int i=0; i<max_e.size(); i++){
+                metadata_size += sizeof(size_t) + max_e[i].size() * sizeof(double);
+            }
         }
         if(mse_estimator) {
             for(int i=0; i<mse.size(); i++){
@@ -67,6 +74,17 @@ public:
             }
         }
         return metadata_size;
+    }
+    template <class T1>
+    size_t serialize_level_vectors(const vector<vector<T1>>& level_vecs, unsigned char * buffer_pos){
+        unsigned char const * const start = buffer_pos;
+        for(int i=0; i<level_vecs.size(); i++){
+            *reinterpret_cast<size_t*>(buffer_pos) = level_vecs[i].size();
+            buffer_pos += sizeof(size_t);
+            memcpy(buffer_pos, level_vecs[i].data(), level_vecs[i].size() * sizeof(T1));
+            buffer_pos += level_vecs[i].size() * sizeof(T1);
+        }
+        return buffer_pos - start;
     }
     unsigned char * serialize(){
         unsigned char * buffer = (unsigned char *) malloc(size());
@@ -84,21 +102,29 @@ public:
         buffer_pos += num_levels * sizeof(T);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
-        for(int i=0; i<bitplane_indictors.size(); i++){
-            *reinterpret_cast<size_t*>(buffer_pos) = bitplane_indictors[i].size();
-            buffer_pos += sizeof(size_t);
-            memcpy(buffer_pos, bitplane_indictors[i].data(), bitplane_indictors[i].size() * sizeof(unsigned char));
-            buffer_pos += bitplane_indictors[i].size() * sizeof(unsigned char);
+        *buffer_pos = max_e_estimator;
+        buffer_pos += sizeof(unsigned char);
+        buffer_pos += serialize_level_vectors(bitplane_indictors, buffer_pos);
+        if(max_e_estimator){
+            buffer_pos += serialize_level_vectors(max_e, buffer_pos);
         }
         if(mse_estimator){
-            for(int i=0; i<mse.size(); i++){
-                *reinterpret_cast<size_t*>(buffer_pos) = mse[i].size();
-                buffer_pos += sizeof(size_t);
-                memcpy(buffer_pos, mse[i].data(), mse[i].size() * sizeof(double));
-                buffer_pos += mse[i].size() * sizeof(double);
-            }
+            buffer_pos += serialize_level_vectors(mse, buffer_pos);
         }
         return buffer;
+    }
+    // auto increment buffer_pos
+    template <class T1>
+    vector<vector<T1>> deserialize_level_vectors(const unsigned char *& buffer_pos, size_t num_levels){
+        vector<vector<T1>> level_vecs;
+        for(int i=0; i<num_levels; i++){
+            size_t num = *reinterpret_cast<const size_t*>(buffer_pos);
+            buffer_pos += sizeof(size_t);
+            vector<T1> level_vec = vector<T1>(reinterpret_cast<const T1 *>(buffer_pos), reinterpret_cast<const T1 *>(buffer_pos) + num);
+            level_vecs.push_back(level_vec);
+            buffer_pos += num * sizeof(T1);
+        }
+        return level_vecs;
     }
     void deserialize(const unsigned char * serialized_data){
         const unsigned char * buffer_pos = serialized_data;
@@ -114,23 +140,17 @@ public:
         buffer_pos += num_levels * sizeof(T);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
-        bitplane_indictors.clear();
-        for(int i=0; i<level_elements.size(); i++){
-            size_t num = *reinterpret_cast<const size_t*>(buffer_pos);
-            buffer_pos += sizeof(size_t);
-            vector<unsigned char> level_indicator = vector<unsigned char>(buffer_pos, buffer_pos + num);
-            bitplane_indictors.push_back(level_indicator);
-            buffer_pos += num * sizeof(unsigned char);
+        max_e_estimator = *buffer_pos;
+        buffer_pos += sizeof(unsigned char);
+        // deserialize_level_vectors has auto increment for buffer_pos
+        bitplane_indictors = deserialize_level_vectors<unsigned char>(buffer_pos, num_levels);
+        if(max_e_estimator){
+            // deserialize_level_vectors has auto increment for buffer_pos
+            max_e = deserialize_level_vectors<double>(buffer_pos, num_levels);
         }
         if(mse_estimator){
-            mse.clear();
-            for(int i=0; i<level_elements.size(); i++){
-                size_t num = *reinterpret_cast<const size_t*>(buffer_pos);
-                buffer_pos += sizeof(size_t);
-                vector<double> level_mse = vector<double>(reinterpret_cast<const double *>(buffer_pos), reinterpret_cast<const double *>(buffer_pos) + num);
-                mse.push_back(level_mse);
-                buffer_pos += num * sizeof(double);
-            }
+            // deserialize_level_vectors has auto increment for buffer_pos
+            mse = deserialize_level_vectors<double>(buffer_pos, num_levels);
         }
     }
     void to_file(const string& filename){
@@ -218,8 +238,9 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
     metadata.init_bitplane_indicators();
     // init metadata sizes recorder
     metadata.init_encoded_sizes();
+    metadata.max_e_estimator = true;
     // turn on mse
-    // metadata.mse_estimator = true;
+    metadata.mse_estimator = true;
     // record all level components
     vector<vector<unsigned char*>> level_components;
     vector<size_t> dims_dummy(dims.size(), 0);
@@ -235,6 +256,10 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
 
         level_error_bounds[i] = record_level_max_value(reinterpret_cast<T*>(buffer), level_elements[i]);
         if(level_elements[i] * sizeof(T) < seg_size){
+            if(metadata.max_e_estimator){
+                auto level_max_e = vector<double>(1, 0);
+                metadata.max_e.push_back(level_max_e);
+            }
             if(metadata.mse_estimator){
                 auto level_mse = vector<double>(1, 0);
                 metadata.mse.push_back(level_mse);
@@ -242,39 +267,45 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             vector<unsigned char*> tiny_level;
             tiny_level.push_back(buffer);
             level_components.push_back(tiny_level);
-            metadata.components_sizes[i].push_back(level_elements[i] * sizeof(T));
+            metadata.component_sizes[i].push_back(level_elements[i] * sizeof(T));
         }
         else{
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
             cout << "level " << i << " max err = " << level_error_bounds[i] << ", exp = " << level_exp << endl;
+            if(metadata.max_e_estimator){
+                auto level_max_e = record_level_max_e(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes, level_exp);
+                metadata.max_e.push_back(level_max_e);
+            }
             if(metadata.mse_estimator){
-                auto level_mse = record_level_mse(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes - 1, level_exp);
+                auto level_mse = record_level_mse(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes, level_exp);
                 metadata.mse.push_back(level_mse);
             }
             // intra-level progressive encoding
             if(metadata.option == ENCODING_DEFAULT){
                 struct timespec start, end;
                 int err = clock_gettime(CLOCK_REALTIME, &start);
-                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
+                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
                 err = clock_gettime(CLOCK_REALTIME, &end);
                 cout << "Byteplane encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
-                auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i]);
+                auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_HYBRID){
                 vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
-                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.components_sizes[i], bitplane_indictor);
+                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
             }
             // release extracted component
             free(buffer);
         }
     }
+    size_t total_size = 0;
+    refactored_data_reorganization(level_components, metadata.component_sizes, metadata.max_e, total_size);
     return level_components;
 }
 
@@ -298,6 +329,16 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
     }
     T * data = (T *) malloc(num_elements * sizeof(T));
     vector<size_t> dims_dummy(dims.size(), 0);
+    if(metadata.max_e_estimator){
+        auto& max_e = metadata.max_e;
+        for(int i=0; i<max_e.size(); i++){
+            for(int j=0; j<max_e[i].size(); j++){
+                cout << j << ":" << max_e[i][j] << " ";
+            }
+            cout <<endl;
+        }
+        cout << endl;
+    }
     if(metadata.mse_estimator){
         auto& mse = metadata.mse;
         for(int i=0; i<mse.size(); i++){
@@ -309,6 +350,7 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
         cout << endl;
     }
     double total_mse = 0;
+    const int mse_factor = 1 << dims.size();
     // reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
     for(int i=0; i<=target_recompose_level; i++){
         const vector<size_t>& prev_dims = (i == 0) ? dims_dummy : level_dims[i - 1];
@@ -324,10 +366,12 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             int encoded_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
             if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;            
             // cout << "encoded_bitplanes = " << encoded_bitplanes << endl;
-            // cout << "MSE: " << i << " " << encoded_bitplanes - 1 << endl; 
-            // cout << total_mse << " + " << metadata.mse[i][encoded_bitplanes - 1] << " = ";
-            // total_mse += metadata.mse[i][encoded_bitplanes - 1];
-            // cout << total_mse << endl;
+            if(metadata.mse_estimator){
+                cout << "MSE: " << i << " " << encoded_bitplanes - 1 << ":" << metadata.mse[i][encoded_bitplanes - 1] << endl; 
+                cout << total_mse << ": " << total_mse * mse_factor << " + " << metadata.mse[i][encoded_bitplanes - 1] << " = ";
+                total_mse = total_mse * mse_factor + metadata.mse[i][encoded_bitplanes - 1];
+                cout << total_mse << endl;
+            }
             // intra-level progressive decoding
             if(metadata.option == ENCODING_DEFAULT){
                 // struct timespec start, end;
