@@ -37,6 +37,7 @@ public:
     vector<vector<double>> max_e;         // max_e[i][j]: max error of level i using the first (j+1) bit-planes
     vector<vector<double>> mse;         // mse[i][j]: mse of level i using the first (j+1) bit-planes
     vector<vector<unsigned char>> bitplane_indictors;   // indicator for bitplane encoding
+    vector<int> order;                  // order of bitplane placement
     bool max_e_estimator = false;
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
@@ -59,7 +60,12 @@ public:
                 sizeof(int) + sizeof(int) + sizeof(size_t)  // option + encoded_bitplanes + number of levels
                 + level_elements.size() * sizeof(size_t)    // level_elements
                 + level_error_bounds.size() * sizeof(T)     // level_eb
-                + sizeof(unsigned char) + sizeof(unsigned char); // estimator flags
+                + sizeof(unsigned char) + sizeof(unsigned char) // estimator flags
+                + sizeof(size_t) + order.size() * sizeof(int) // order
+                ;
+        for(int i=0; i<component_sizes.size(); i++){
+            metadata_size += sizeof(size_t) + component_sizes[i].size() * sizeof(size_t);
+        }
         for(int i=0; i<bitplane_indictors.size(); i++){
             metadata_size += sizeof(size_t) + bitplane_indictors[i].size() * sizeof(unsigned char);
         }
@@ -100,10 +106,15 @@ public:
         buffer_pos += num_levels * sizeof(size_t);
         memcpy(buffer_pos, level_error_bounds.data(), num_levels * sizeof(T));
         buffer_pos += num_levels * sizeof(T);
+        *reinterpret_cast<size_t*>(buffer_pos) = order.size();
+        buffer_pos += sizeof(size_t);
+        memcpy(buffer_pos, order.data(), order.size() * sizeof(int));
+        buffer_pos += order.size() * sizeof(int);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
         *buffer_pos = max_e_estimator;
         buffer_pos += sizeof(unsigned char);
+        buffer_pos += serialize_level_vectors(component_sizes, buffer_pos);
         buffer_pos += serialize_level_vectors(bitplane_indictors, buffer_pos);
         if(max_e_estimator){
             buffer_pos += serialize_level_vectors(max_e, buffer_pos);
@@ -138,11 +149,16 @@ public:
         buffer_pos += num_levels * sizeof(size_t);
         level_error_bounds = vector<T>(reinterpret_cast<const T *>(buffer_pos), reinterpret_cast<const T *>(buffer_pos) + num_levels);
         buffer_pos += num_levels * sizeof(T);
+        size_t order_size = *reinterpret_cast<const size_t*>(buffer_pos);
+        buffer_pos += sizeof(size_t);
+        order = vector<int>(reinterpret_cast<const int *>(buffer_pos), reinterpret_cast<const int *>(buffer_pos) + order_size);
+        buffer_pos += order_size * sizeof(int);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         max_e_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         // deserialize_level_vectors has auto increment for buffer_pos
+        component_sizes = deserialize_level_vectors<size_t>(buffer_pos, num_levels);
         bitplane_indictors = deserialize_level_vectors<unsigned char>(buffer_pos, num_levels);
         if(max_e_estimator){
             // deserialize_level_vectors has auto increment for buffer_pos
@@ -210,8 +226,7 @@ void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims,
 @params data: decomposed data
 @params target_level: decomposed level
 @params dims: data dimensions
-@params metadata: malloced metadata array
-@params with_compression: whether to use lossless compression on leading zeros
+@params metadata: metadata object
 */
 template <class T>
 vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int target_level, const vector<size_t>& dims, Metadata<T>& metadata){
@@ -245,14 +260,14 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
     vector<vector<unsigned char*>> level_components;
     vector<size_t> dims_dummy(dims.size(), 0);
     for(int i=0; i<=target_level; i++){
-        // cout << "encoding level " << i << endl;
+        // cout << "encoding level " << target_level - i << endl;
         const vector<size_t>& prev_dims = (i == 0) ? dims_dummy : level_dims[i - 1];
         unsigned char * buffer = (unsigned char *) malloc(level_elements[i] * sizeof(T));
         // extract components for each level
         interleave_level_coefficients(data, dims, level_dims[i], prev_dims, reinterpret_cast<T*>(buffer));
 
         string outfile("decomposed_level_");
-        writefile((outfile + to_string(i) + ".dat").c_str(), reinterpret_cast<T*>(buffer), level_elements[i]);
+        writefile((outfile + to_string(target_level - i) + ".dat").c_str(), reinterpret_cast<T*>(buffer), level_elements[i]);
 
         level_error_bounds[i] = record_level_max_value(reinterpret_cast<T*>(buffer), level_elements[i]);
         if(level_elements[i] * sizeof(T) < seg_size){
@@ -304,21 +319,19 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             free(buffer);
         }
     }
-    size_t total_size = 0;
-    refactored_data_reorganization(level_components, metadata.component_sizes, metadata.max_e, total_size);
     return level_components;
 }
 
 // reposition level-centric decomposed data for recomposition
 /*
 @params data: decomposed data
+@params metadata: metadata object
 @params target_level: decomposed level
 @params target_recompose_level: recomposed level
 @params dims: data dimensions, modified after calling the function
-@params with_compression: whether to use lossless compression on leading zeros
 */
 template <class T>
-T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_components, const Metadata<T>& metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims){
+T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& level_components, const Metadata<T>& metadata, int target_level, int target_recompose_level, const vector<int>& intra_recompose_level, vector<size_t>& dims){
     auto level_dims = init_levels(dims, target_level);
     const vector<size_t>& level_elements = metadata.level_elements;
     const vector<T>& level_error_bounds = metadata.level_error_bounds;
@@ -329,36 +342,36 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
     }
     T * data = (T *) malloc(num_elements * sizeof(T));
     vector<size_t> dims_dummy(dims.size(), 0);
-    if(metadata.max_e_estimator){
-        auto& max_e = metadata.max_e;
-        for(int i=0; i<max_e.size(); i++){
-            for(int j=0; j<max_e[i].size(); j++){
-                cout << j << ":" << max_e[i][j] << " ";
-            }
-            cout <<endl;
-        }
-        cout << endl;
-    }
-    if(metadata.mse_estimator){
-        auto& mse = metadata.mse;
-        for(int i=0; i<mse.size(); i++){
-            for(int j=0; j<mse[i].size(); j++){
-                cout << j << ":" << mse[i][j] << " ";
-            }
-            cout <<endl;
-        }
-        cout << endl;
-    }
+    // if(metadata.max_e_estimator){
+    //     auto& max_e = metadata.max_e;
+    //     for(int i=0; i<max_e.size(); i++){
+    //         for(int j=0; j<max_e[i].size(); j++){
+    //             cout << j << ":" << max_e[i][j] << " ";
+    //         }
+    //         cout <<endl;
+    //     }
+    //     cout << endl;
+    // }
+    // if(metadata.mse_estimator){
+    //     auto& mse = metadata.mse;
+    //     for(int i=0; i<mse.size(); i++){
+    //         for(int j=0; j<mse[i].size(); j++){
+    //             cout << j << ":" << mse[i][j] << " ";
+    //         }
+    //         cout <<endl;
+    //     }
+    //     cout << endl;
+    // }
     double total_mse = 0;
     const int mse_factor = 1 << dims.size();
     // reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
     for(int i=0; i<=target_recompose_level; i++){
         const vector<size_t>& prev_dims = (i == 0) ? dims_dummy : level_dims[i - 1];
         if(level_elements[i] * sizeof(T) < seg_size){
-            reposition_level_coefficients(reinterpret_cast<T*>(level_components[i][0]), dims, level_dims[i], prev_dims, data);
+            reposition_level_coefficients(reinterpret_cast<const T *>(level_components[i][0]), dims, level_dims[i], prev_dims, data);
         }
         else{
-            cout << "decoding level " << i << ", size of components = " << level_components[i].size() << endl;
+            cout << "decoding level " << target_recompose_level - i << ", size of components = " << level_components[i].size() << endl;
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
@@ -376,7 +389,7 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             if(metadata.option == ENCODING_DEFAULT){
                 // struct timespec start, end;
                 // int err = clock_gettime(CLOCK_REALTIME, &start);
-                buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);                
+                buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
                 // err = clock_gettime(CLOCK_REALTIME, &end);
                 // cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
@@ -390,7 +403,7 @@ T * level_centric_data_reposition(const vector<vector<unsigned char*>>& level_co
             reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
 
             string outfile("reconstructed_level_");
-            writefile((outfile + to_string(i) + ".dat").c_str(), reinterpret_cast<T*>(buffer), level_elements[i]);
+            writefile((outfile + to_string(target_recompose_level - i) + ".dat").c_str(), reinterpret_cast<const T *>(buffer), level_elements[i]);
 
             // release reconstructed component
             free(buffer);

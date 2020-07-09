@@ -224,7 +224,7 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
 
 
 template <class T>
-T * progressive_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
+T * progressive_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
@@ -306,7 +306,7 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
 }
 
 template <class T>
-T * progressive_decoding_with_rle_compression(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
+T * progressive_decoding_with_rle_compression(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -387,7 +387,7 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
 }
 
 template <class T>
-T * progressive_hybrid_decoding(const vector<unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
+T * progressive_hybrid_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
