@@ -226,17 +226,62 @@ unsigned char * refactored_data_reorganization(const vector<vector<unsigned char
     return reorganized_data;
 }
 
-// read the reorganized_data into vector of level bitplanes
-vector<vector<const unsigned char*>> read_reorganized_data(const unsigned char * refactored_data, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, const vector<int>& order, vector<int>& num_intra_level_components){
+// interpret how many data to read in order to achieve the required tolerance
+/*
+@params level_sizes: size of level components
+@params level_errors: level error estimators
+@params order: order of level bitplanes
+@params mode: error mode (e.g. max_e = 0, mse = 1)
+@params tolerance: required error tolerance
+@params index: record number of bitplane extracted from each level
+*/
+size_t interpret_reading_size(const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, const vector<int>& order, int mode, double tolerance, vector<int>& index){
+    size_t retrieved_size = 0;
+    int count = 0;
+    double err = 0;
+    for(int i=0; i<level_errors.size(); i++){
+        err += level_errors[i][0];
+    }
+    for(int i=0; i<level_errors.size(); i++){
+        for(int j=0; j<level_errors[i].size(); j++){
+            cout << j << ":" << level_errors[i][j] << " ";
+        }
+        cout << endl;
+    }
+    double err_est_constant = 1.65;
+    while((err_est_constant * err > tolerance) && (count < order.size())){
+        int level = order[count ++];
+        int bitplane_index = index[level];
+        if(bitplane_index == 0){
+            retrieved_size += level_sizes[level][0] + level_sizes[level][1];
+        }
+        else{
+            retrieved_size += level_sizes[level][bitplane_index + 1];
+        }
+        err += level_errors[level][bitplane_index + 1] - level_errors[level][bitplane_index]; 
+        index[level] ++;
+        cout << err << endl;
+    }
+    return retrieved_size;
+}
+// read the refactored into vector of level bitplanes
+/*
+@params refactored_data: refactored data
+@params level_sizes: level encoded sizes
+@params order: order of level bitplanes
+@params retrieved_size: size of retrieved data
+*/
+vector<vector<const unsigned char*>> read_reorganized_data(const unsigned char * refactored_data, const vector<vector<size_t>>& level_sizes, const vector<int>& order, size_t retrieved_size){
     vector<vector<const unsigned char*>> level_components;
-    for(int i=0; i<num_intra_level_components.size(); i++){
+    for(int i=0; i<level_sizes.size(); i++){
         level_components.push_back(vector<const unsigned char*>());
     }
     const unsigned char * refactored_data_pos = refactored_data;
+    vector<int> index(level_sizes.size(), 0);
     int count = 0;
-    while(count < 30){
+    while(refactored_data_pos - refactored_data < retrieved_size){
         int level = order[count ++];
-        int bitplane_index = num_intra_level_components[level];
+        int bitplane_index = index[level];
         if(bitplane_index == 0){
             level_components[level].push_back(refactored_data_pos);
             refactored_data_pos += level_sizes[level][0];
@@ -247,8 +292,9 @@ vector<vector<const unsigned char*>> read_reorganized_data(const unsigned char *
             level_components[level].push_back(refactored_data_pos);
             refactored_data_pos += level_sizes[level][bitplane_index + 1];
         }
-        num_intra_level_components[level] ++;
+        index[level] ++;
     }
+    cout << "read data size = " << refactored_data_pos - refactored_data << endl; 
     return level_components;
 }
 

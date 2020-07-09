@@ -300,7 +300,7 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
         err = clock_gettime(CLOCK_REALTIME, &end);
         encoded_sizes.push_back(encoders[i].size());
         count += encoders[i].size();
-        cout << "The " << i << "-th bitplanes encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << " s, ratio = " << (n / 8) * 1.0 /encoders[i].size()<< " , progressive ratio = " << ((i+1) * (n / 8)) * 1.0 / count << endl;
+        // cout << "The " << i << "-th bitplanes encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << " s, ratio = " << (n / 8) * 1.0 /encoders[i].size()<< " , progressive ratio = " << ((i+1) * (n / 8)) * 1.0 / count << endl;
     }
     return intra_level_components;
 }
@@ -379,8 +379,8 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
             encoded_sizes[k] = rle.size();
             bitplane_indicator[k] = 1;
             err = clock_gettime(CLOCK_REALTIME, &end);
-            cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
-            cout << "s, encoded size = " << rle.size() << endl;
+            // cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+            // cout << "s, encoded size = " << rle.size() << endl;
         }
     }
     return intra_level_components;

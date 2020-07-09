@@ -342,26 +342,6 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
     }
     T * data = (T *) malloc(num_elements * sizeof(T));
     vector<size_t> dims_dummy(dims.size(), 0);
-    // if(metadata.max_e_estimator){
-    //     auto& max_e = metadata.max_e;
-    //     for(int i=0; i<max_e.size(); i++){
-    //         for(int j=0; j<max_e[i].size(); j++){
-    //             cout << j << ":" << max_e[i][j] << " ";
-    //         }
-    //         cout <<endl;
-    //     }
-    //     cout << endl;
-    // }
-    // if(metadata.mse_estimator){
-    //     auto& mse = metadata.mse;
-    //     for(int i=0; i<mse.size(); i++){
-    //         for(int j=0; j<mse[i].size(); j++){
-    //             cout << j << ":" << mse[i][j] << " ";
-    //         }
-    //         cout <<endl;
-    //     }
-    //     cout << endl;
-    // }
     double total_mse = 0;
     const int mse_factor = 1 << dims.size();
     // reposition_level_coefficients(reinterpret_cast<T*>(level_components[0][0]), dims, level_dims[0], dims_dummy, data);
@@ -371,7 +351,7 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             reposition_level_coefficients(reinterpret_cast<const T *>(level_components[i][0]), dims, level_dims[i], prev_dims, data);
         }
         else{
-            cout << "decoding level " << target_recompose_level - i << ", size of components = " << level_components[i].size() << endl;
+            cout << "decoding level " << level_elements.size() - 1 - i << ", size of components = " << level_components[i].size() << endl;
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
@@ -403,8 +383,7 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
 
             string outfile("reconstructed_level_");
-            writefile((outfile + to_string(target_recompose_level - i) + ".dat").c_str(), reinterpret_cast<const T *>(buffer), level_elements[i]);
-
+            writefile((outfile + to_string(level_elements.size() - 1 - i) + ".dat").c_str(), reinterpret_cast<const T *>(buffer), level_elements[i]);
             // release reconstructed component
             free(buffer);
         }
