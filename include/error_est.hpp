@@ -190,75 +190,11 @@ unsigned char * refactored_data_reorganization_direct(const vector<vector<unsign
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
     return reorganized_data;
 }
-// reorganize refactored data with respect to max error
-// use a greedy algorithm to pick up the most efficient bitplane
-// return reorganized data
-/*
-@params level_components: level bitplanes
-@params level_sizes: level encoded sizes
-@params level_errors: level error estimators
-@params order: order of level bitplanes
-@params total_size: total size of reorganized data
-*/
-unsigned char * refactored_data_reorganization_max_error(const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, vector<int>& order, size_t& total_size){
-    const int num_levels = level_sizes.size();
-    total_size = 0;
-    // init error_gain: reduced error by including current bitplane
-    // init sizes: the corresponding sizes of bitplanes
-    // NOTE: the sizes of the two vector is 1 less than component sizes
-    //         because sign is grouped with the first bitplane
-    vector<vector<double>> error_gain;
-    vector<vector<double>> sizes;
-    for(int i=0; i<num_levels; i++){
-        error_gain.push_back(vector<double>(level_sizes[i].size() - 1));
-        sizes.push_back(vector<double>(level_sizes[i].size() - 1));
-    }
-    // compute erorr gain and sizes for bitplanes
-    for(int i=0; i<num_levels; i++){
-        for(int j=0; j<error_gain[i].size(); j++){
-            error_gain[i][j] = level_errors[i][j] - level_errors[i][j+1];
-            sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
-            total_size += sizes[i][j];
-        }
-    }
-    cout << "total_size = " << total_size << endl;
-    unsigned char * reorganized_data = (unsigned char *) malloc(total_size);
-    unsigned char * reorganized_data_pos = reorganized_data;
-    vector<size_t> index(num_levels, 0);
-    // metric for greedy algorithm: how much error gain per byte
-    priority_queue<Efficiency, vector<Efficiency>, CompareEfficiency> efficiency_heap;
-    for(int i=0; i<num_levels; i++){
-        efficiency_heap.push(Efficiency(error_gain[i][0] / sizes[i][0], i));
-    }
-    order.clear();
-    while(!efficiency_heap.empty()){
-        auto eff = efficiency_heap.top();
-        efficiency_heap.pop();
-        auto level = eff.level;
-        auto bitplane_index = index[level];
-        // cout << "Encode level " << level << " component " << bitplane_index << ", efficiency = " << eff.efficiency << endl;
-        order.push_back(level);
-        if(bitplane_index == 0){
-            memcpy(reorganized_data_pos, level_components[level][0], level_sizes[level][0]);
-            reorganized_data_pos += level_sizes[level][0];
-            memcpy(reorganized_data_pos, level_components[level][1], level_sizes[level][1]);
-            reorganized_data_pos += level_sizes[level][1];
-        }
-        else{
-            memcpy(reorganized_data_pos, level_components[level][bitplane_index + 1], level_sizes[level][bitplane_index + 1]);
-            reorganized_data_pos += level_sizes[level][bitplane_index + 1];
-        }
-        index[level] ++;
-        if(index[level] != level_components[level].size() - 1){
-            efficiency_heap.push(Efficiency(error_gain[level][bitplane_index] / sizes[level][bitplane_index], level));
-        }
-    }
-    cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
-    return reorganized_data;
-}
 
 // reorganize refactored data with respect to squared error
 /*
+@params N: number of dimensions
+@params mode: error estimation mode
 @params level_components: level bitplanes
 @params level_sizes: level encoded sizes
 @params level_errors: level error estimators
@@ -266,13 +202,9 @@ unsigned char * refactored_data_reorganization_max_error(const vector<vector<uns
 @params order: order of level bitplanes
 @params total_size: total size of reorganized data
 */
-unsigned char * refactored_data_reorganization_squared_error(int N, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, const vector<size_t>& level_elements, vector<int>& order, size_t& total_size){
+unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, const vector<size_t>& level_elements, vector<int>& order, size_t& total_size){
     const int num_levels = level_sizes.size();
     total_size = 0;
-    vector<double> factor(num_levels, 0);
-    for(int i=0; i<num_levels; i++){
-        factor[i] = 1u << (N * (num_levels - 1 - i));
-    }
     // init error_gain: reduced error by including current bitplane
     // init sizes: the corresponding sizes of bitplanes
     // NOTE: the sizes of the two vector is 1 less than component sizes
@@ -284,13 +216,31 @@ unsigned char * refactored_data_reorganization_squared_error(int N, const vector
         sizes.push_back(vector<double>(level_sizes[i].size() - 1));
     }
     // compute erorr gain and sizes for bitplanes
-    size_t num_elements = 1;
-    for(int i=0; i<num_levels; i++){
-        for(int j=0; j<error_gain[i].size(); j++){
-            error_gain[i][j] = (level_errors[i][j] - level_errors[i][j+1]) * factor[i];
-            sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
-            total_size += sizes[i][j];
+    if(mode == MAX_ERROR){
+        for(int i=0; i<num_levels; i++){
+            for(int j=0; j<error_gain[i].size(); j++){
+                error_gain[i][j] = level_errors[i][j] - level_errors[i][j+1];
+                sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
+                total_size += sizes[i][j];
+            }
         }
+    }
+    else if(mode == SQUARED_ERROR){
+        vector<double> factor(num_levels, 0);
+        for(int i=0; i<num_levels; i++){
+            factor[i] = 1u << (N * (num_levels - 1 - i));
+        }
+        for(int i=0; i<num_levels; i++){
+            for(int j=0; j<error_gain[i].size(); j++){
+                error_gain[i][j] = (level_errors[i][j] - level_errors[i][j+1]) * factor[i];
+                sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
+                total_size += sizes[i][j];
+            }
+        }        
+    }
+    else{
+        cerr << "Mode " << mode << " not supported in refactored_data_reorganization_shuffled." << endl;
+        exit(0);
     }
     cout << "total_size = " << total_size << endl;
     unsigned char * reorganized_data = (unsigned char *) malloc(total_size);
@@ -321,7 +271,7 @@ unsigned char * refactored_data_reorganization_squared_error(int N, const vector
         }
         index[level] ++;
         if(index[level] != level_components[level].size() - 1){
-            efficiency_heap.push(Efficiency(error_gain[level][bitplane_index] / sizes[level][bitplane_index], level));
+            efficiency_heap.push(Efficiency(error_gain[level][bitplane_index + 1] / sizes[level][bitplane_index + 1], level));
         }
     }
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;

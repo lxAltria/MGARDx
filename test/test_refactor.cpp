@@ -44,12 +44,7 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     const auto& level_errors = metadata.get_level_errors();
     unsigned char * refactored_data = NULL;
     if(metadata.data_reorganization){
-        if(metadata.mode == MAX_ERROR) refactored_data = REFACTOR::refactored_data_reorganization_max_error(components, metadata.component_sizes, level_errors, metadata.order, total_size);
-        else if(metadata.mode == SQUARED_ERROR) refactored_data = REFACTOR::refactored_data_reorganization_squared_error(dims.size(), components, metadata.component_sizes, level_errors, level_elements, metadata.order, total_size);
-        else{
-            cerr << "No such mode exist! Exit." << endl;
-            exit(0);
-        }
+        refactored_data = REFACTOR::refactored_data_reorganization_shuffled(dims.size(), metadata.mode, components, metadata.component_sizes, level_errors, level_elements, metadata.order, total_size);
     }
     else{
         refactored_data = REFACTOR::refactored_data_reorganization_direct(components, metadata.component_sizes, metadata.order, total_size);
@@ -224,8 +219,8 @@ int main(int argc, char ** argv){
     int target_level = atoi(argv[3]);
     int option = atoi(argv[4]); // 0 for direct, 1 for rle, 2 for hybrid
     if((option > 2) || (option < 0)) option = 0;
-    int mode = atoi(argv[5]);   // 0 for max_e, 1 for squared error
-    if((mode > 1) || (mode < 0)) option = 0;
+    int mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error
+    if((mode > 2) || (mode < 1)) mode = 1;
     double tolerance = atof(argv[6]);   // error tolerance 
     int reorganization = atoi(argv[7]);   // enable data reorganization 
     const int num_dims = atoi(argv[8]);
