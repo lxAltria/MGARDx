@@ -38,6 +38,8 @@ public:
     vector<vector<double>> mse;         // mse[i][j]: mse of level i using the first (j+1) bit-planes
     vector<vector<unsigned char>> bitplane_indictors;   // indicator for bitplane encoding
     vector<int> order;                  // order of bitplane placement
+    int mode = 0;                       // mode for error estimation
+    bool data_reorganization = false;   // whether to enable reorder of data
     bool max_e_estimator = false;
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
@@ -62,6 +64,7 @@ public:
                 + level_error_bounds.size() * sizeof(T)     // level_eb
                 + sizeof(unsigned char) + sizeof(unsigned char) // estimator flags
                 + sizeof(size_t) + order.size() * sizeof(int) // order
+                + sizeof(int) + sizeof(unsigned char)         // mode + reorganization
                 ;
         for(int i=0; i<component_sizes.size(); i++){
             metadata_size += sizeof(size_t) + component_sizes[i].size() * sizeof(size_t);
@@ -110,9 +113,13 @@ public:
         buffer_pos += sizeof(size_t);
         memcpy(buffer_pos, order.data(), order.size() * sizeof(int));
         buffer_pos += order.size() * sizeof(int);
+        *reinterpret_cast<int*>(buffer_pos) = mode;
+        buffer_pos += sizeof(int);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
         *buffer_pos = max_e_estimator;
+        buffer_pos += sizeof(unsigned char);
+        *buffer_pos = data_reorganization;
         buffer_pos += sizeof(unsigned char);
         buffer_pos += serialize_level_vectors(component_sizes, buffer_pos);
         buffer_pos += serialize_level_vectors(bitplane_indictors, buffer_pos);
@@ -153,9 +160,13 @@ public:
         buffer_pos += sizeof(size_t);
         order = vector<int>(reinterpret_cast<const int *>(buffer_pos), reinterpret_cast<const int *>(buffer_pos) + order_size);
         buffer_pos += order_size * sizeof(int);
+        mode = *reinterpret_cast<const int*>(buffer_pos);
+        buffer_pos += sizeof(int);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         max_e_estimator = *buffer_pos;
+        buffer_pos += sizeof(unsigned char);
+        data_reorganization = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         // deserialize_level_vectors has auto increment for buffer_pos
         component_sizes = deserialize_level_vectors<size_t>(buffer_pos, num_levels);
@@ -179,6 +190,33 @@ public:
         unsigned char * buffer = readfile_pointer<unsigned char>(filename.c_str(), num_bytes);
         deserialize(buffer);
         free(buffer);
+    }
+    void set_mode(int mode_){
+        mode = mode_;
+        if(mode == MAX_ERROR){
+            max_e_estimator = true;
+            mse_estimator = false;
+        }
+        else if(mode == SQUARED_ERROR){
+            max_e_estimator = false;
+            mse_estimator = true;            
+        }
+        else{
+            cerr << "Mode not supported! Exit." << endl;
+            exit(0);
+        }
+    }
+    const vector<vector<double>>& get_level_errors(){
+        if(mode == MAX_ERROR){
+            return max_e;
+        }
+        else if(mode == SQUARED_ERROR){
+            return mse;        
+        }
+        else{
+            cerr << "Mode not supported! Exit." << endl;
+            exit(0);
+        }
     }
 };
 
@@ -253,9 +291,6 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
     metadata.init_bitplane_indicators();
     // init metadata sizes recorder
     metadata.init_encoded_sizes();
-    metadata.max_e_estimator = true;
-    // turn on mse
-    metadata.mse_estimator = true;
     // record all level components
     vector<vector<unsigned char*>> level_components;
     vector<size_t> dims_dummy(dims.size(), 0);
@@ -358,9 +393,9 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             T * buffer = NULL;
             int encoded_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
             if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;            
-            // cout << "encoded_bitplanes = " << encoded_bitplanes << endl;
+            cout << "encoded_bitplanes = " << encoded_bitplanes << endl;
             if(metadata.mse_estimator){
-                cout << "MSE: " << i << " " << encoded_bitplanes - 1 << ":" << metadata.mse[i][encoded_bitplanes - 1] << endl; 
+                cout << "squared error: " << i << " " << encoded_bitplanes - 1 << ":" << metadata.mse[i][encoded_bitplanes - 1] << endl; 
                 cout << total_mse << ": " << total_mse * mse_factor << " + " << metadata.mse[i][encoded_bitplanes - 1] << " = ";
                 total_mse = total_mse * mse_factor + metadata.mse[i][encoded_bitplanes - 1];
                 cout << total_mse << endl;
@@ -390,7 +425,7 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
 
     }
     total_mse /= num_elements;
-    cout << "total MSE = " << total_mse << endl;
+    cout << "total mean squared error = " << total_mse << endl;
     return data;
 }
 

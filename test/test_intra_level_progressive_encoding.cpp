@@ -26,8 +26,12 @@ void test(string filename, int recompose_level_intra){
     auto level_components = REFACTOR::progressive_encoding(data.data(), num_elements, level_exp, 32, encoded_sizes);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+    vector<const unsigned char *> level_components_const;
+    for(int i=0; i<level_components.size(); i++){
+        level_components_const.push_back(level_components[i]);
+    }
     err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data_recomp = REFACTOR::progressive_decoding<T>(level_components, num_elements, level_exp, recompose_level_intra);
+    T * data_recomp = REFACTOR::progressive_decoding<T>(level_components_const, num_elements, level_exp, recompose_level_intra);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Progressive decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     MGARD::print_statistics(data.data(), data_recomp, num_elements);
