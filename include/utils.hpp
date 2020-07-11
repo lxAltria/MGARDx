@@ -99,6 +99,16 @@ void print(T * data, size_t n1, size_t n2, string s){
     cout << endl;
 }
 template <class T>
+void print(const vector<vector<T>>& data){
+    for(int i=0; i<data.size(); i++){
+        for(int j=0; j<data[i].size(); j++){
+            cout << j << ":" << data[i][j] << " ";
+        }
+        cout << endl;
+    }
+    cout << endl;
+}
+template <class T>
 void print_statistics(const T * data_ori, const T * data_dec, size_t data_size){
     double max_val = data_ori[0];
     double min_val = data_ori[0];

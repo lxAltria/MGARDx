@@ -18,7 +18,7 @@ inline bool file_exist(const std::string& filename) {
 }
 
 template <class T>
-void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level, int option, int mode, int reorganization){
+void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level, int option, int reorganization){
     struct timespec start, end;
     int err = 0;
     err = clock_gettime(CLOCK_REALTIME, &start);
@@ -34,7 +34,7 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     // set data reorganization
     metadata.data_reorganization = reorganization;
     // set error mode
-    metadata.set_mode(mode);
+    metadata.set_mode(MAX_ERROR);
     auto components = REFACTOR::level_centric_data_refactor(data.data(), target_level, dims, metadata);
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "Refactor time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
@@ -43,8 +43,11 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
     const vector<T>& level_error_bounds = metadata.level_error_bounds;    
     const auto& level_errors = metadata.get_level_errors();
     unsigned char * refactored_data = NULL;
-    if(metadata.data_reorganization){
-        refactored_data = REFACTOR::refactored_data_reorganization_shuffled(dims.size(), metadata.mode, components, metadata.component_sizes, level_errors, level_elements, metadata.order, total_size);
+    if(metadata.data_reorganization == GREEDY_SHUFFLED){
+        refactored_data = REFACTOR::refactored_data_reorganization_shuffled(dims.size(), metadata.mode, components, metadata.component_sizes, level_errors, metadata.order, total_size);
+    }
+    else if(metadata.data_reorganization == QUANTIZED){
+        refactored_data = REFACTOR::refactored_data_reorganization_quantized(dims.size(), metadata.mode, components, metadata.component_sizes, metadata.max_e, metadata.order, total_size);
     }
     else{
         refactored_data = REFACTOR::refactored_data_reorganization_direct(components, metadata.component_sizes, metadata.order, total_size);
@@ -71,17 +74,18 @@ void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level
 }
 
 template <class T>
-T * test_reposition(const vector<size_t>& dims, vector<size_t>& recompose_dims, size_t& recompose_times, double tolerance){
+T * test_reposition(const vector<size_t>& dims, vector<size_t>& recompose_dims, size_t& recompose_times, int retrieve_mode, double tolerance){
     REFACTOR::Metadata<T> metadata;
     metadata.from_file(string("refactor_data/metadata").c_str());
     int target_level = metadata.level_elements.size() - 1;
     size_t num_bytes = 0;
+    metadata.set_mode(retrieve_mode);
     const vector<vector<double>>& level_errors = metadata.get_level_errors();
     const vector<vector<size_t>>& level_sizes = metadata.component_sizes;
     const vector<int>& order = metadata.order;
     cout << "init level components\n";
     vector<int> num_intra_level_components(target_level + 1, 0);
-    if(metadata.mode == SQUARED_ERROR){
+    if(retrieve_mode == SQUARED_ERROR){
         // change tolerance from psnr to se
         double psnr = tolerance;
         double value_range = 39.5582 + 53.0226;
@@ -169,14 +173,14 @@ void put_back_data_3d(const T * data, const vector<size_t>& dims, T * full_data,
 }
 
 template <class T>
-void test(string filename, const vector<size_t>& dims, int target_level, int option, int mode, double tolerance, int reorganization){
+void test(string filename, const vector<size_t>& dims, int target_level, int option, int retrieve_mode, double tolerance, int reorganization){
     size_t num_elements = 0;
     auto data = MGARD::readfile<T>(filename.c_str(), num_elements);
     auto data_ori(data);
-    test_refactor(data, dims, target_level, option, mode, reorganization);
+    test_refactor(data, dims, target_level, option, reorganization);
     vector<size_t> recompose_dims(dims);
     size_t recompose_times = 0;
-    auto data_recomp = test_reposition<T>(dims, recompose_dims, recompose_times, tolerance);
+    auto data_recomp = test_reposition<T>(dims, recompose_dims, recompose_times, retrieve_mode, tolerance);
     // 0 is the finest level in recomposition
     if(recompose_times != target_level){
         T * data_recomp_full = (T *) malloc(num_elements * sizeof(T));
@@ -219,8 +223,8 @@ int main(int argc, char ** argv){
     int target_level = atoi(argv[3]);
     int option = atoi(argv[4]); // 0 for direct, 1 for rle, 2 for hybrid
     if((option > 2) || (option < 0)) option = 0;
-    int mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error
-    if((mode > 2) || (mode < 1)) mode = 1;
+    int retrieve_mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error
+    if((retrieve_mode > 2) || (retrieve_mode < 1)) retrieve_mode = 1;
     double tolerance = atof(argv[6]);   // error tolerance 
     int reorganization = atoi(argv[7]);   // enable data reorganization 
     const int num_dims = atoi(argv[8]);
@@ -233,12 +237,12 @@ int main(int argc, char ** argv){
     switch(type){
         case 0:
             {
-                test<float>(filename, dims, target_level, option, mode, tolerance, reorganization);
+                test<float>(filename, dims, target_level, option, retrieve_mode, tolerance, reorganization);
                 break;
             }
         case 1:
             {
-                test<double>(filename, dims, target_level, option, mode, tolerance, reorganization);
+                test<double>(filename, dims, target_level, option, retrieve_mode, tolerance, reorganization);
                 break;
             }
         default:

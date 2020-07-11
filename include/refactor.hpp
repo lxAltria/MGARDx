@@ -22,6 +22,9 @@ using namespace MGARD;
 // size of segment: default 4 MB
 const int seg_size = 4;
 
+#define IN_ORDER 0
+#define GREEDY_SHUFFLED 1
+#define QUANTIZED 2
 // metadata for refactored data
 template <class T>
 class Metadata{
@@ -39,7 +42,7 @@ public:
     vector<vector<unsigned char>> bitplane_indictors;   // indicator for bitplane encoding
     vector<int> order;                  // order of bitplane placement
     int mode = 0;                       // mode for error estimation
-    bool data_reorganization = false;   // whether to enable reorder of data
+    int data_reorganization = IN_ORDER;   // whether to enable reorder of data
     bool max_e_estimator = false;
     bool mse_estimator = false;
     int option = ENCODING_DEFAULT;
@@ -64,7 +67,7 @@ public:
                 + level_error_bounds.size() * sizeof(T)     // level_eb
                 + sizeof(unsigned char) + sizeof(unsigned char) // estimator flags
                 + sizeof(size_t) + order.size() * sizeof(int) // order
-                + sizeof(int) + sizeof(unsigned char)         // mode + reorganization
+                + sizeof(int) + sizeof(int)         // mode + reorganization
                 ;
         for(int i=0; i<component_sizes.size(); i++){
             metadata_size += sizeof(size_t) + component_sizes[i].size() * sizeof(size_t);
@@ -115,11 +118,11 @@ public:
         buffer_pos += order.size() * sizeof(int);
         *reinterpret_cast<int*>(buffer_pos) = mode;
         buffer_pos += sizeof(int);
+        *buffer_pos = data_reorganization;
+        buffer_pos += sizeof(int);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
         *buffer_pos = max_e_estimator;
-        buffer_pos += sizeof(unsigned char);
-        *buffer_pos = data_reorganization;
         buffer_pos += sizeof(unsigned char);
         buffer_pos += serialize_level_vectors(component_sizes, buffer_pos);
         buffer_pos += serialize_level_vectors(bitplane_indictors, buffer_pos);
@@ -162,11 +165,11 @@ public:
         buffer_pos += order_size * sizeof(int);
         mode = *reinterpret_cast<const int*>(buffer_pos);
         buffer_pos += sizeof(int);
+        data_reorganization = *buffer_pos;
+        buffer_pos += sizeof(int);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         max_e_estimator = *buffer_pos;
-        buffer_pos += sizeof(unsigned char);
-        data_reorganization = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
         // deserialize_level_vectors has auto increment for buffer_pos
         component_sizes = deserialize_level_vectors<size_t>(buffer_pos, num_levels);
@@ -194,15 +197,17 @@ public:
     void set_mode(int mode_){
         mode = mode_;
         if(mode == MAX_ERROR){
+            // enable both estimators for retrieval
             max_e_estimator = true;
-            mse_estimator = false;
+            mse_estimator = true;
         }
         else if(mode == SQUARED_ERROR){
             max_e_estimator = false;
-            mse_estimator = true;            
+            mse_estimator = true; 
+            if(data_reorganization == QUANTIZED) max_e_estimator = true;           
         }
         else{
-            cerr << "Mode not supported! Exit." << endl;
+            cerr << "set_mode: mode not supported! Exit." << endl;
             exit(0);
         }
     }
@@ -214,7 +219,7 @@ public:
             return mse;        
         }
         else{
-            cerr << "Mode not supported! Exit." << endl;
+            cerr << "get_level_errors: mode not supported! Exit." << endl;
             exit(0);
         }
     }

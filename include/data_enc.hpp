@@ -98,14 +98,27 @@ public:
         encoder.encode(length, encoded_pos);
         encoder.postprocess_encode();
         encoded_size = encoded_pos - encoded;
-        return encoded;
+        // return encoded;
+        unsigned char * lossless_encoded = lossless_encode(encoded, encoded_size);
+        free(encoded);
+        return lossless_encoded;
     }
 private:
+    unsigned char * lossless_encode(unsigned char * encoded, size_t& encoded_size){
+        unsigned char * lossless_compressed = NULL;
+        size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, encoded, encoded_size, &lossless_compressed);
+        encoded_size = lossless_length + sizeof(size_t);
+        unsigned char * lossless_compressed_with_size = (unsigned char *) malloc(encoded_size);
+        *reinterpret_cast<size_t*>(lossless_compressed_with_size) = lossless_length;
+        memcpy(lossless_compressed_with_size + sizeof(size_t), lossless_compressed, lossless_length);
+        free(lossless_compressed);
+        return lossless_compressed_with_size;
+    }
     vector<int> length;
     bool lastbit = false;
     int count = 0;
     int index = 0;
-    int encoded_size = 0;
+    size_t encoded_size = 0;
 };
 
 class RunlengthDecoder : public DecoderInterface{
@@ -123,7 +136,9 @@ public:
             return decode();
         }
     }
-    void load(const unsigned char * encoded){
+    // void load(const unsigned char * encoded){
+    void load(const unsigned char * lossless_encoded){
+        auto encoded = lossless_decode(lossless_encoded);
         const unsigned char * encoded_pos = encoded;
         size_t n = *reinterpret_cast<const size_t*>(encoded_pos);
         encoded_pos += sizeof(size_t);
@@ -132,12 +147,19 @@ public:
         encoder.load(encoded_pos, remaining_length);
         length = encoder.decode(encoded_pos, n);
         encoder.postprocess_decode();
+        free(encoded);
         count = 0;
         index = 0;
         // toggle lastbit to true such that the first decode would be false since count=0
         lastbit = true;
     }
 private:
+    unsigned char * lossless_decode(const unsigned char * lossless_encoded){
+        unsigned char * encoded = NULL;
+        size_t lossless_length = *reinterpret_cast<const size_t*>(lossless_encoded);
+        size_t compressed_length = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, lossless_encoded + sizeof(size_t), lossless_length, &encoded);
+        return encoded;
+    }
     vector<int> length;
     bool lastbit = false;
     int count = 0;
@@ -361,8 +383,9 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
         encoded_sizes.push_back(buffer_index);
     }
     struct timespec start, end;
-    for(int k=0; k<num_level_component; k++){
-        int err = clock_gettime(CLOCK_REALTIME, &start);        
+    bool use_rle = true;
+    for(int k=1; k<num_level_component; k++){
+        // int err = clock_gettime(CLOCK_REALTIME, &start);        
         RunlengthEncoder rle;
         for(int i=0; i<buffer_index; i++){
             unsigned char datum = byte_encoders[k][i];
@@ -372,13 +395,14 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
             }
         }
         rle.flush();
-        if(k){
+        if((k > 25) || use_rle){
             free(intra_level_components[k]);
             // change content of level components, encoded size and indicator
             intra_level_components[k] = rle.save();
             encoded_sizes[k] = rle.size();
             bitplane_indicator[k] = 1;
-            err = clock_gettime(CLOCK_REALTIME, &end);
+            if(rle.size() * 1.5 > level_component_size) use_rle = false;
+            // err = clock_gettime(CLOCK_REALTIME, &end);
             // cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
             // cout << "s, encoded size = " << rle.size() << endl;
         }

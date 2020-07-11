@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <bitset>
 #include <queue>
+#include "utils.hpp"
 
 namespace REFACTOR{
 
@@ -17,6 +18,7 @@ using namespace std;
 #define SQUARED_ERROR 2
 
 #define MAX_2(a, b) (a > b) ? (a) : (b)
+#define LOOKUP_STEPS 2
 // compute maximum value in level
 /*
 @params data: level data
@@ -171,6 +173,7 @@ struct CompareEfficiency {
 @params total_size: total size of reorganized data
 */
 unsigned char * refactored_data_reorganization_direct(const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, vector<int>& order, size_t& total_size){
+    cout << "Reorganize refactored data by level ordering." << endl;
     const int num_levels = level_sizes.size();
     total_size = 0;
     for(int i=0; i<num_levels; i++){
@@ -191,37 +194,56 @@ unsigned char * refactored_data_reorganization_direct(const vector<vector<unsign
     return reorganized_data;
 }
 
-// reorganize refactored data with respect to squared error
+template <class T>
+vector<vector<T>> amortize_error(const vector<vector<T>>& error, int steps){
+    vector<vector<T>> amortized = vector<vector<T>>(error.size());
+    for(int i=0; i<amortized.size(); i++){
+        amortized[i] = vector<T>(error[i].size());
+    }
+    for(int i=0; i<error.size(); i++){
+        for(int j=0; j<error[i].size(); j++){
+            double sum = 0;
+            int count = 0;
+            for(int k=0; k<steps; k++){
+                if(j + k == error[i].size()) break;
+                sum += error[i][j + k];
+                count ++;
+            }
+            amortized[i][j] = sum / count;
+        }
+    }
+    return amortized;
+}
+// reorganize refactored data using a greedy estimation
 /*
 @params N: number of dimensions
 @params mode: error estimation mode
 @params level_components: level bitplanes
 @params level_sizes: level encoded sizes
 @params level_errors: level error estimators
-@params level_elements: level number of elements
 @params order: order of level bitplanes
 @params total_size: total size of reorganized data
 */
-unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, const vector<size_t>& level_elements, vector<int>& order, size_t& total_size){
+unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, vector<int>& order, size_t& total_size){
+    cout << "Reorganize refactored data by greedy shuffline." << endl;
     const int num_levels = level_sizes.size();
     total_size = 0;
     // init error_gain: reduced error by including current bitplane
     // init sizes: the corresponding sizes of bitplanes
     // NOTE: the sizes of the two vector is 1 less than component sizes
     //         because sign is grouped with the first bitplane
-    vector<vector<double>> error_gain;
-    vector<vector<double>> sizes;
+    vector<vector<double>> efficiency;
     for(int i=0; i<num_levels; i++){
-        error_gain.push_back(vector<double>(level_sizes[i].size() - 1));
-        sizes.push_back(vector<double>(level_sizes[i].size() - 1));
+        efficiency.push_back(vector<double>(level_sizes[i].size() - 1));
     }
     // compute erorr gain and sizes for bitplanes
     if(mode == MAX_ERROR){
         for(int i=0; i<num_levels; i++){
-            for(int j=0; j<error_gain[i].size(); j++){
-                error_gain[i][j] = level_errors[i][j] - level_errors[i][j+1];
-                sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
-                total_size += sizes[i][j];
+            for(int j=0; j<efficiency[i].size(); j++){
+                auto error_gain = level_errors[i][j] - level_errors[i][j+1];
+                auto sizes = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
+                efficiency[i][j] = error_gain / sizes;
+                total_size += sizes;
             }
         }
     }
@@ -231,25 +253,26 @@ unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const v
             factor[i] = 1u << (N * (num_levels - 1 - i));
         }
         for(int i=0; i<num_levels; i++){
-            for(int j=0; j<error_gain[i].size(); j++){
-                error_gain[i][j] = (level_errors[i][j] - level_errors[i][j+1]) * factor[i];
-                sizes[i][j] = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
-                total_size += sizes[i][j];
+            for(int j=0; j<efficiency[i].size(); j++){
+                auto error_gain = (level_errors[i][j] - level_errors[i][j+1]) * factor[i];
+                auto sizes = (j == 0) ? (level_sizes[i][0] + level_sizes[i][1]) : level_sizes[i][j+1];
+                efficiency[i][j] = error_gain / sizes;
+                total_size += sizes;
             }
-        }        
+        }
     }
     else{
         cerr << "Mode " << mode << " not supported in refactored_data_reorganization_shuffled." << endl;
         exit(0);
     }
-    cout << "total_size = " << total_size << endl;
+    efficiency = amortize_error(efficiency, LOOKUP_STEPS);
     unsigned char * reorganized_data = (unsigned char *) malloc(total_size);
     unsigned char * reorganized_data_pos = reorganized_data;
     vector<size_t> index(num_levels, 0);
     // metric for greedy algorithm: how much error gain per byte
     priority_queue<Efficiency, vector<Efficiency>, CompareEfficiency> efficiency_heap;
     for(int i=0; i<num_levels; i++){
-        efficiency_heap.push(Efficiency(error_gain[i][0] / sizes[i][0], i));
+        efficiency_heap.push(Efficiency(efficiency[i][0], i));
     }
     order.clear();
     while(!efficiency_heap.empty()){
@@ -271,12 +294,83 @@ unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const v
         }
         index[level] ++;
         if(index[level] != level_components[level].size() - 1){
-            efficiency_heap.push(Efficiency(error_gain[level][bitplane_index + 1] / sizes[level][bitplane_index + 1], level));
+            efficiency_heap.push(Efficiency(efficiency[level][index[level]], level));
         }
     }
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
+    for(int i=0; i<order.size(); i++){
+        cout << order[i];
+    }
+    cout << endl;
+    // exit(0);
     return reorganized_data;
 }
+// reorganize refactored data using "uniformed" quantization across levels 
+/*
+@params N: number of dimensions
+@params mode: error estimation mode
+@params level_components: level bitplanes
+@params level_sizes: level encoded sizes
+@params level_errors: level error estimators
+@params order: order of level bitplanes
+@params total_size: total size of reorganized data
+*/
+unsigned char * refactored_data_reorganization_quantized(int N, int mode, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, vector<int>& order, size_t& total_size){
+    cout << "Reorganize refactored data by uniform quantization." << endl;
+    const int num_levels = level_sizes.size();
+    total_size = 0;
+    vector<double> factor(num_levels, 1);
+    if(mode == SQUARED_ERROR){
+        for(int i=0; i<num_levels; i++){
+            factor[i] = sqrt(1u << (N * (num_levels - 1 - i)));
+            cout << factor[i] << " " << endl;
+        }
+    }
+    cout << "compute total_size" << endl;
+    for(int i=0; i<num_levels; i++){
+        for(int j=0; j<level_sizes[i].size(); j++){
+            total_size += level_sizes[i][j];
+        }
+    }
+    cout << "total_size = " << total_size << endl;
+    unsigned char * reorganized_data = (unsigned char *) malloc(total_size);
+    unsigned char * reorganized_data_pos = reorganized_data;
+    vector<size_t> index(num_levels, 0);
+    order.clear();
+    int rest_level_count = num_levels;
+    double error_level = level_errors[0][0];
+    while(rest_level_count){
+        for(int i=0; i<num_levels; i++){
+            if(index[i] < level_sizes[i].size() - 1){
+                while((index[i] < level_sizes[i].size() - 1) && (level_errors[i][index[i]] * factor[i] >= error_level)){
+                    order.push_back(i);
+                    int level = i;
+                    int bitplane_index = index[i];
+                    if(bitplane_index == 0){
+                        memcpy(reorganized_data_pos, level_components[level][0], level_sizes[level][0]);
+                        reorganized_data_pos += level_sizes[level][0];
+                        memcpy(reorganized_data_pos, level_components[level][1], level_sizes[level][1]);
+                        reorganized_data_pos += level_sizes[level][1];
+                    }
+                    else{
+                        memcpy(reorganized_data_pos, level_components[level][bitplane_index + 1], level_sizes[level][bitplane_index + 1]);
+                        reorganized_data_pos += level_sizes[level][bitplane_index + 1];
+                    }
+                    index[i] ++;
+                }
+                if(index[i] == level_sizes[i].size() - 1) rest_level_count --;
+            }
+        }
+        error_level /= 2;
+    }
+    cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
+    for(int i=0; i<order.size(); i++){
+        cout << order[i];
+    }
+    cout << endl;
+    return reorganized_data;
+}
+
 
 inline double estimate_error(double error, int level, int N, int mode){
     if(mode == MAX_ERROR){
