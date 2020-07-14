@@ -88,8 +88,11 @@ T * test_reposition(const vector<size_t>& dims, vector<size_t>& recompose_dims, 
     if(retrieve_mode == SQUARED_ERROR){
         // change tolerance from psnr to se
         double psnr = tolerance;
-        double value_range = 39.5582 + 53.0226;
-        size_t num = 100*500*500;
+        double value_range = 46.6766 + 71.7543;
+        size_t num = 1;
+        for(const auto& d:dims){
+            num *= d;
+        }
         tolerance = (value_range / pow(10, psnr/20))*(value_range / pow(10, psnr/20)) * num;
         cout << "tolerance = " << tolerance << ", mean = " << tolerance / num << endl;
     }

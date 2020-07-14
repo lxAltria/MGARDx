@@ -330,12 +330,20 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             frexp(level_error_bounds[i], &level_exp);
             cout << "level " << i << " max err = " << level_error_bounds[i] << ", exp = " << level_exp << endl;
             if(metadata.max_e_estimator){
-                auto level_max_e = record_level_max_e(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes, level_exp);
+                struct timespec start, end;
+                int err = clock_gettime(CLOCK_REALTIME, &start);
+                auto level_max_e = record_level_max_e(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes, level_error_bounds[i]);
                 metadata.max_e.push_back(level_max_e);
+                err = clock_gettime(CLOCK_REALTIME, &end);
+                cout << "A_inf recording time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             if(metadata.mse_estimator){
+                struct timespec start, end;
+                int err = clock_gettime(CLOCK_REALTIME, &start);
                 auto level_mse = record_level_mse(reinterpret_cast<T*>(buffer), level_elements[i], metadata.encoded_bitplanes, level_exp);
                 metadata.mse.push_back(level_mse);
+                err = clock_gettime(CLOCK_REALTIME, &end);
+                cout << "A_2 recording time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             // intra-level progressive encoding
             if(metadata.option == ENCODING_DEFAULT){
@@ -344,16 +352,20 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                 auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
                 err = clock_gettime(CLOCK_REALTIME, &end);
-                cout << "Byteplane encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+                cout << "Default encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
                 auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_HYBRID){
+                struct timespec start, end;
+                int err = clock_gettime(CLOCK_REALTIME, &start);
                 vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
+                err = clock_gettime(CLOCK_REALTIME, &end);
+                cout << "Hybrid encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             // release extracted component
             free(buffer);

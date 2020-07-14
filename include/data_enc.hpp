@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <bitset>
 #include <iomanip>
+#include "data_enc_opt.hpp"
 
 namespace REFACTOR{
 
@@ -165,57 +166,7 @@ private:
     int count = 0;
     int index = 0;
 };
-// encode bitplanes by byte
-/*
-@params data: coefficient data
-@params n: number of coefficients in current level
-@params level_exp: exponent of max level element
-@params num_level_component: number of encoded bitplanes
-@params byte_encoders: vector of byte-wise encoder
-*/
-template <class T>
-size_t byte_wise_direct_encoding(const T * data, int n, int level_exp, int num_level_component, vector<unsigned char *>& byte_encoders){
-    size_t data_index = 0;
-    size_t buffer_index = 0;
-    for(int i=0; i<n/8; i++){
-        unsigned char tmp[32] = {0};
-        for(int j=0; j<8; j++){
-            T val = data[data_index ++];
-            T cur_data = ldexp(val, num_level_component - 1 - level_exp);
-            long int fix_point = (long int) cur_data;
-            unsigned int sign = val < 0;
-            unsigned int fp = sign ? -fix_point : +fix_point;
-            tmp[0] += sign << j;
-            for(int k=num_level_component - 2; k>=0; k--){
-                tmp[num_level_component - 1 - k] += ((fp >> k) & 1) << j;
-            }
-        }
-        for(int k=0; k<num_level_component; k++){
-            byte_encoders[k][buffer_index] = tmp[k];
-        }
-        buffer_index ++;
-    }
-    {
-        int rest = n % 8;
-        unsigned char tmp[32] = {0};
-        for(int j=0; j<rest; j++){
-            T val = data[data_index ++];
-            T cur_data = ldexp(val, num_level_component - 1 - level_exp);
-            long int fix_point = (long int) cur_data;
-            unsigned int sign = val < 0;
-            unsigned int fp = sign ? -fix_point : +fix_point;
-            tmp[0] += sign << j;
-            for(int k=num_level_component - 2; k>=0; k--){
-                tmp[num_level_component - 1 - k] += ((fp >> k) & 1) << j;
-            }
-        }
-        for(int k=0; k<num_level_component; k++){
-            byte_encoders[k][buffer_index] = tmp[k];
-        }
-        buffer_index ++;
-    }
-    return buffer_index;
-}
+
 // encode the intra level components progressively
 /*
 @params data: coefficient data
@@ -237,7 +188,7 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         intra_level_components.push_back(buffer);
         byte_encoders.push_back(buffer);
     }    
-    size_t buffer_index = byte_wise_direct_encoding(data, n, level_exp, num_level_component, byte_encoders);
+    size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
     for(int k=0; k<num_level_component; k++){
         encoded_sizes.push_back(buffer_index);
     }
@@ -378,30 +329,31 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
         // set indicator
         bitplane_indicator.push_back(0);
     }    
-    size_t buffer_index = byte_wise_direct_encoding(data, n, level_exp, num_level_component, byte_encoders);
+    size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
     for(int k=0; k<num_level_component; k++){
         encoded_sizes.push_back(buffer_index);
     }
     struct timespec start, end;
     bool use_rle = true;
     for(int k=1; k<num_level_component; k++){
-        // int err = clock_gettime(CLOCK_REALTIME, &start);        
-        RunlengthEncoder rle;
-        for(int i=0; i<buffer_index; i++){
-            unsigned char datum = byte_encoders[k][i];
-            for(int j=0; j<8; j++){
-                rle.encode(datum & 1);
-                datum >>= 1;            
-            }
-        }
-        rle.flush();
         if((k > 25) || use_rle){
+            // int err = clock_gettime(CLOCK_REALTIME, &start);        
+            RunlengthEncoder rle;
+            for(int i=0; i<buffer_index; i++){
+                unsigned char datum = byte_encoders[k][i];
+                for(int j=0; j<8; j++){
+                    rle.encode(datum & 1);
+                    datum >>= 1;            
+                }
+            }
+            rle.flush();
             free(intra_level_components[k]);
             // change content of level components, encoded size and indicator
             intra_level_components[k] = rle.save();
             encoded_sizes[k] = rle.size();
             bitplane_indicator[k] = 1;
             if(rle.size() * 1.5 > level_component_size) use_rle = false;
+            // cout << "RLE index = " << k << endl;  
             // err = clock_gettime(CLOCK_REALTIME, &end);
             // cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
             // cout << "s, encoded size = " << rle.size() << endl;

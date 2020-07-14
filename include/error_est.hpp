@@ -50,47 +50,24 @@ union FloatingInt64{
 @params level_exp: aligned level exponent
 */
 template <class T>
-vector<double> record_level_max_e(const T * data, size_t n, int num_bitplanes, int level_exp);
+vector<double> record_level_max_e(const T * data, size_t n, int num_bitplanes, T level_max_val);
 template <>
-vector<double> record_level_max_e(const float * data, size_t n, int num_bitplanes, int level_exp){
+vector<double> record_level_max_e(const float * data, size_t n, int num_bitplanes, float level_max_val){
+    int level_exp = 0;
+    frexp(level_max_val, &level_exp);
     const int prec = 23;
     int encode_prec = num_bitplanes - 1;
-    // if(encode_prec > prec) encode_prec = prec;
     vector<double> max_e = vector<double>(encode_prec + 1, 0);
-    FloatingInt32 fi;
-    for(int i=0; i<n; i++){
-        int data_exp = 0;
-        frexp(data[i], &data_exp);
-        auto val = data[i];
-        fi.f = val;
-        int exp_diff = level_exp - data_exp + prec - encode_prec;
-        int index = encode_prec;
-        if(exp_diff > 0){
-            // zeroing out unrecorded bitplanes
-            for(int b=0; b<exp_diff; b++){
-                fi.i &= ~(1u << b);            
-            }
-        }
-        else{
-            // skip padding 0s (no errors)
-            index += exp_diff;
-            exp_diff = 0;
-        }
-        for(int b=exp_diff; b<prec; b++){
-            // change b-th bit to 0
-            fi.i &= ~(1u << b);
-            max_e[index] = MAX_2(max_e[index], fabs(data[i] - fi.f));
-            index --;
-        }
-        while(index >= 0){
-            max_e[index] = MAX_2(max_e[index], fabs(data[i]));
-            index --;
-        }
+    max_e[0] = level_max_val;
+    double err = ldexp(1.0, level_exp - 1);
+    for(int i=1; i<max_e.size(); i++){
+        max_e[i] = err;
+        err /= 2;
     }
     return max_e;
 }
 template <>
-vector<double> record_level_max_e(const double * data, size_t n, int num_bitplanes, int level_exp){
+vector<double> record_level_max_e(const double * data, size_t n, int num_bitplanes, double level_max_val){
     cout << "Not implemented yet...\nExit -1.\n";
     exit(-1);
     if(num_bitplanes > 52) num_bitplanes = 52;
@@ -191,6 +168,9 @@ unsigned char * refactored_data_reorganization_direct(const vector<vector<unsign
         }
     }
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
+    for(int i=0; i<order.size(); i++){
+        cout << num_levels - 1 - order[i];
+    }
     return reorganized_data;
 }
 
@@ -225,7 +205,7 @@ vector<vector<T>> amortize_error(const vector<vector<T>>& error, int steps){
 @params total_size: total size of reorganized data
 */
 unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const vector<vector<unsigned char*>>& level_components, const vector<vector<size_t>>& level_sizes, const vector<vector<double>>& level_errors, vector<int>& order, size_t& total_size){
-    cout << "Reorganize refactored data by greedy shuffline." << endl;
+    cout << "Reorganize refactored data by greedy shuffling." << endl;
     const int num_levels = level_sizes.size();
     total_size = 0;
     // init error_gain: reduced error by including current bitplane
@@ -299,7 +279,7 @@ unsigned char * refactored_data_reorganization_shuffled(int N, int mode, const v
     }
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
     for(int i=0; i<order.size(); i++){
-        cout << order[i];
+        cout << num_levels - 1 - order[i];
     }
     cout << endl;
     // exit(0);
@@ -365,7 +345,7 @@ unsigned char * refactored_data_reorganization_quantized(int N, int mode, const 
     }
     cout << "recorded data size = " << reorganized_data_pos - reorganized_data << endl;
     for(int i=0; i<order.size(); i++){
-        cout << order[i];
+        cout << num_levels - 1 - order[i];
     }
     cout << endl;
     return reorganized_data;
