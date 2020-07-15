@@ -19,154 +19,6 @@ using namespace std;
 #define ENCODING_RLE 1
 #define ENCODING_HYBRID 2
 
-class EncoderInterface{
-public:
-    virtual void encode(bool) = 0;
-    virtual void flush() = 0;
-    virtual size_t size() = 0;
-    virtual unsigned char * save() = 0;
-};
-
-class DecoderInterface{
-public:
-    virtual ~DecoderInterface() = default;
-    virtual bool decode() = 0;
-    virtual void load(const unsigned char *) = 0;
-};
-// A class to read data bit by bit
-// Currently does not consider the case when decoding size is larger than capacity
-class BitDecoder : public DecoderInterface{
-public:
-    BitDecoder() = default;
-    ~BitDecoder() = default;
-    bool decode(){
-        if (!(buffer >> 1u)) buffer = 0x100u + *current++;
-        bool bit = buffer & 1u;
-        buffer >>= 1u;
-        return bit;
-    }
-    size_t size(){ return (buffer == 1u) ? current - start : current - start + 1; }
-    void load(const unsigned char * encoded_data){
-        start = encoded_data;
-        current = start;
-        buffer = 1u;
-    }
-private:
-    unsigned char const * start = NULL;
-    unsigned char const * current = NULL;
-    unsigned int buffer = 1u;
-};
-/*******************************************/
-
-// Runlength encoder
-class RunlengthEncoder : public EncoderInterface{
-public:
-    RunlengthEncoder(){}
-    void encode(bool bit){
-        if(lastbit == bit){
-            count ++;
-            if(count == 256){
-                length.push_back(count);
-                count = 0;
-                lastbit = !bit;
-            }
-        }
-        else {
-            length.push_back(count);
-            count = 1;
-            lastbit = bit;
-        }
-    }
-    void flush(){
-        if(count != 0){
-            length.push_back(count);
-            count = 0;
-            lastbit = false;
-        }
-    }
-    size_t size(){
-        return encoded_size;
-    }
-    unsigned char * save(){
-        // Huffman
-        unsigned char * encoded = (unsigned char *) malloc(length.size() * sizeof(int));
-        auto encoded_pos = encoded;
-        *reinterpret_cast<size_t*>(encoded_pos) = length.size();
-        encoded_pos += sizeof(size_t);
-        auto encoder = SZ::HuffmanEncoder<int>();
-        encoder.preprocess_encode(length, 2*256);
-        encoder.save(encoded_pos);
-        encoder.encode(length, encoded_pos);
-        encoder.postprocess_encode();
-        encoded_size = encoded_pos - encoded;
-        // return encoded;
-        unsigned char * lossless_encoded = lossless_encode(encoded, encoded_size);
-        free(encoded);
-        return lossless_encoded;
-    }
-private:
-    unsigned char * lossless_encode(unsigned char * encoded, size_t& encoded_size){
-        unsigned char * lossless_compressed = NULL;
-        size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, encoded, encoded_size, &lossless_compressed);
-        encoded_size = lossless_length + sizeof(size_t);
-        unsigned char * lossless_compressed_with_size = (unsigned char *) malloc(encoded_size);
-        *reinterpret_cast<size_t*>(lossless_compressed_with_size) = lossless_length;
-        memcpy(lossless_compressed_with_size + sizeof(size_t), lossless_compressed, lossless_length);
-        free(lossless_compressed);
-        return lossless_compressed_with_size;
-    }
-    vector<int> length;
-    bool lastbit = false;
-    int count = 0;
-    int index = 0;
-    size_t encoded_size = 0;
-};
-
-class RunlengthDecoder : public DecoderInterface{
-public:
-    RunlengthDecoder() = default;
-    ~RunlengthDecoder() = default;
-    bool decode(){
-        if(count){
-            count --;
-            return lastbit;
-        }
-        else{
-            count = length[index ++];
-            lastbit = !lastbit;
-            return decode();
-        }
-    }
-    // void load(const unsigned char * encoded){
-    void load(const unsigned char * lossless_encoded){
-        auto encoded = lossless_decode(lossless_encoded);
-        const unsigned char * encoded_pos = encoded;
-        size_t n = *reinterpret_cast<const size_t*>(encoded_pos);
-        encoded_pos += sizeof(size_t);
-        auto encoder = SZ::HuffmanEncoder<int>();
-        size_t remaining_length = INT_MAX;
-        encoder.load(encoded_pos, remaining_length);
-        length = encoder.decode(encoded_pos, n);
-        encoder.postprocess_decode();
-        free(encoded);
-        count = 0;
-        index = 0;
-        // toggle lastbit to true such that the first decode would be false since count=0
-        lastbit = true;
-    }
-private:
-    unsigned char * lossless_decode(const unsigned char * lossless_encoded){
-        unsigned char * encoded = NULL;
-        size_t lossless_length = *reinterpret_cast<const size_t*>(lossless_encoded);
-        size_t compressed_length = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, lossless_encoded + sizeof(size_t), lossless_length, &encoded);
-        return encoded;
-    }
-    vector<int> length;
-    bool lastbit = false;
-    int count = 0;
-    int index = 0;
-};
-
 // encode the intra level components progressively
 /*
 @params data: coefficient data
@@ -198,38 +50,9 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
 
 template <class T>
 T * progressive_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
-    T * level_data = (T *) malloc(n * sizeof(T));
-    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
-    vector<BitDecoder> decoders;
-    // vector<bitstream*> decoders;
-    for(int i=0; i<num_level_component; i++){
-        decoders.push_back(BitDecoder());
-        decoders[i].load(level_components[i]);
-        // decoders.push_back(stream_open(level_components[i], level_component_size));
-    }
-    T * data_pos = level_data;
-    for(int i=0; i<n; i++){
-        // decode each bit of the data for each level component
-        bool sign = decoders[0].decode();
-        // bool sign = stream_read_bit(decoders[0]);
-        unsigned int fp = 0;
-        for(int j=1; j<num_level_component; j++){
-            unsigned int current_bit = decoders[j].decode();
-            // unsigned int current_bit = stream_read_bit(decoders[j]);
-            fp = (fp << 1) + current_bit;
-        }
-        long int fix_point = fp;
-        if(sign) fix_point = -fix_point;
-        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
-        data_pos ++;
-    }
-    // for(int i=0; i<num_level_component; i++){
-    //     stream_close(decoders[i]);
-    // }
-    return level_data;
+    return byte_wise_direct_decoding<T>(level_components, n, level_exp, num_level_component);
 }
 
 // encode the intra level components progressively, with runlength encoding on each bit-plane
@@ -336,7 +159,7 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
     struct timespec start, end;
     bool use_rle = true;
     for(int k=1; k<num_level_component; k++){
-        if((k > 25) || use_rle){
+        if((k >= RLE_2_INDEX_F32) || use_rle){
             // int err = clock_gettime(CLOCK_REALTIME, &start);        
             RunlengthEncoder rle;
             for(int i=0; i<buffer_index; i++){
@@ -364,45 +187,9 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
 
 template <class T>
 T * progressive_hybrid_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
-    T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    vector<DecoderInterface*> decoders;
-    for(int i=0; i<num_level_component; i++){
-        switch(bitplane_indicator[i]){
-            case 0:{
-                decoders.push_back(new BitDecoder());
-                break;
-            }
-            case 1:{
-                decoders.push_back(new RunlengthDecoder());
-                break;
-            }
-            default:{
-                cerr << "Only direct encoding (indicator = 0) and RLE (indicator = 1) are supported\n";
-                exit(0);
-            }
-        }
-        decoders[i]->load(level_components[i]);
-    }
-    T * data_pos = level_data;
-    for(int i=0; i<n; i++){
-        // decode each bit of the data for each level component
-        bool sign = decoders[0]->decode();
-        unsigned int fp = 0;
-        for(int j=1; j<num_level_component; j++){
-            unsigned int current_bit = decoders[j]->decode();
-            fp = (fp << 1) + current_bit;
-        }
-        long int fix_point = fp;
-        if(sign) fix_point = -fix_point;
-        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
-        data_pos ++;
-    }
-    for(int i=0; i<num_level_component; i++){
-        delete decoders[i];
-    }
-    return level_data;
+    return byte_wise_hybrid_decoding<T>(level_components, n, level_exp, num_level_component, bitplane_indicator);
 }
 
 }

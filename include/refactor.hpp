@@ -118,7 +118,7 @@ public:
         buffer_pos += order.size() * sizeof(int);
         *reinterpret_cast<int*>(buffer_pos) = mode;
         buffer_pos += sizeof(int);
-        *buffer_pos = data_reorganization;
+        *reinterpret_cast<int*>(buffer_pos) = data_reorganization;
         buffer_pos += sizeof(int);
         *buffer_pos = mse_estimator;
         buffer_pos += sizeof(unsigned char);
@@ -165,7 +165,7 @@ public:
         buffer_pos += order_size * sizeof(int);
         mode = *reinterpret_cast<const int*>(buffer_pos);
         buffer_pos += sizeof(int);
-        data_reorganization = *buffer_pos;
+        data_reorganization = *reinterpret_cast<const int*>(buffer_pos);
         buffer_pos += sizeof(int);
         mse_estimator = *buffer_pos;
         buffer_pos += sizeof(unsigned char);
@@ -418,12 +418,10 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
                 cout << total_mse << endl;
             }
             // intra-level progressive decoding
+            struct timespec start, end;
+            int err = clock_gettime(CLOCK_REALTIME, &start);
             if(metadata.option == ENCODING_DEFAULT){
-                // struct timespec start, end;
-                // int err = clock_gettime(CLOCK_REALTIME, &start);
                 buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
-                // err = clock_gettime(CLOCK_REALTIME, &end);
-                // cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             }
             else if(metadata.option == ENCODING_RLE){
                 buffer = progressive_decoding_with_rle_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
@@ -432,6 +430,8 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 buffer = progressive_hybrid_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
             }
+            err = clock_gettime(CLOCK_REALTIME, &end);
+            cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             reposition_level_coefficients(buffer, dims, level_dims[i], prev_dims, data);
 
             string outfile("reconstructed_level_");

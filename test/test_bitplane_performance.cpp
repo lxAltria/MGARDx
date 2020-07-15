@@ -292,7 +292,7 @@ void test(string filename){
             else{
                 last_bit[j] = cur_bit;
                 counts[j].push_back(count[j]);
-                count[j] = j;
+                count[j] = 0;
             }
         }
     }
