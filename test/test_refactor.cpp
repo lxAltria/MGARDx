@@ -5,8 +5,6 @@
 #include <iomanip>
 #include <cmath>
 #include <sys/stat.h>
-#include "decompose.hpp"
-#include "recompose.hpp"
 #include "refactor.hpp"
 #include "error_est.hpp"
 
@@ -19,114 +17,29 @@ inline bool file_exist(const std::string& filename) {
 
 template <class T>
 void test_refactor(vector<T>& data, const vector<size_t>& dims, int target_level, int option, int reorganization){
-    struct timespec start, end;
-    int err = 0;
-    err = clock_gettime(CLOCK_REALTIME, &start);
-    MGARD::Decomposer<T> decomposer;
-    decomposer.decompose(data.data(), dims, target_level);
-    err = clock_gettime(CLOCK_REALTIME, &end);
-    cout << "Decomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    err = clock_gettime(CLOCK_REALTIME, &start);
-    // create metadata
-    REFACTOR::Metadata<T> metadata(target_level);
-    // set encoding option
-    metadata.option = option;
-    // set data reorganization
-    metadata.data_reorganization = reorganization;
-    // set error mode
-    metadata.set_mode(MAX_ERROR);
-    auto components = REFACTOR::level_centric_data_refactor(data.data(), target_level, dims, metadata);
-    err = clock_gettime(CLOCK_REALTIME, &end);
-    cout << "Refactor time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    size_t total_size = 0;
-    const vector<size_t>& level_elements = metadata.level_elements;
-    const vector<T>& level_error_bounds = metadata.level_error_bounds;    
-    const auto& level_errors = metadata.get_level_errors();
     unsigned char * refactored_data = NULL;
-    if(metadata.data_reorganization == GREEDY_SHUFFLED){
-        refactored_data = REFACTOR::refactored_data_reorganization_shuffled(dims.size(), metadata.mode, components, metadata.component_sizes, level_errors, metadata.order, total_size);
-    }
-    else if(metadata.data_reorganization == QUANTIZED){
-        refactored_data = REFACTOR::refactored_data_reorganization_quantized(dims.size(), metadata.mode, components, metadata.component_sizes, metadata.max_e, metadata.order, total_size);
-    }
-    else{
-        refactored_data = REFACTOR::refactored_data_reorganization_direct(components, metadata.component_sizes, metadata.order, total_size);
-    }
-    MGARD::writefile<unsigned char>("refactor_data/refactored.dat", refactored_data, total_size);
-    // write metadata
+    REFACTOR::Metadata<T> metadata = REFACTOR::multigrid_data_refactor(data, dims, target_level, option, reorganization, &refactored_data);
+    MGARD::writefile<unsigned char>("refactor_data/refactored.dat", refactored_data, metadata.total_encoded_size);
     metadata.to_file(string("refactor_data/metadata").c_str());
-    for(int i=0; i<components.size(); i++){
-        for(int j=0; j<components[i].size(); j++){
-            free(components[i][j]);
-        }
-    }
     free(refactored_data);
-    // cout << "level elements: ";
-    // for(int i=0; i<=target_level; i++){
-    //     cout << level_elements[i] << " ";
-    // }
-    // cout << endl;
-    // cout << "level errors: ";
-    // for(int i=0; i<=target_level; i++){
-    //     cout << level_error_bounds[i] << " ";
-    // }
-    // cout << endl << endl;
 }
 
 template <class T>
-T * test_reposition(const vector<size_t>& dims, vector<size_t>& recompose_dims, size_t& recompose_times, int retrieve_mode, double tolerance){
+T * test_reposition(int retrieve_mode, double tolerance, vector<size_t>& recompose_dims, size_t& recompose_times){
     REFACTOR::Metadata<T> metadata;
     metadata.from_file(string("refactor_data/metadata").c_str());
-    int target_level = metadata.level_elements.size() - 1;
-    size_t num_bytes = 0;
-    metadata.set_mode(retrieve_mode);
-    const vector<vector<double>>& level_errors = metadata.get_level_errors();
-    const vector<vector<size_t>>& level_sizes = metadata.component_sizes;
-    const vector<int>& order = metadata.order;
-    cout << "init level components\n";
-    vector<int> num_intra_level_components(target_level + 1, 0);
-    if(retrieve_mode == SQUARED_ERROR){
+    if(retrieve_mode == PSNR){    
         // change tolerance from psnr to se
         double psnr = tolerance;
-        double value_range = 46.6766 + 71.7543;
+        double value_range = metadata.max_val - metadata.min_val;
         size_t num = 1;
-        for(const auto& d:dims){
+        for(const auto& d:metadata.dims){
             num *= d;
         }
         tolerance = (value_range / pow(10, psnr/20))*(value_range / pow(10, psnr/20)) * num;
-        cout << "tolerance = " << tolerance << ", mean = " << tolerance / num << endl;
+        metadata.set_mode(SQUARED_ERROR);
     }
-    size_t retrieved_size = REFACTOR::interpret_reading_size(dims.size(), level_sizes, level_errors, order, metadata.mode, tolerance, num_intra_level_components);
-    for(int i=0; i<=target_level; i++){
-        if(num_intra_level_components[i] != 0){
-            // increment number of level components because 0 and 1 are grouped as 1
-            num_intra_level_components[i] ++;
-        }
-    }
-    cout << "retrieved_size = " << retrieved_size << endl;
-    unsigned char * refactored_data = MGARD::readfile_pointer<unsigned char>("refactor_data/refactored.dat", num_bytes);
-    auto components = REFACTOR::read_reorganized_data(refactored_data, level_sizes, order, retrieved_size);
-    int recomposed_level = 0;
-    for(int i=0; i<=target_level; i++){
-        if(num_intra_level_components[target_level - i] != 0){
-            recomposed_level = i;
-            break;
-        }
-    }
-    cout << "Recompose to level " << recomposed_level << endl;;
-    recompose_times = target_level - recomposed_level;
-    struct timespec start, end;
-    int err = 0;
-    err = clock_gettime(CLOCK_REALTIME, &start);
-    T * data = REFACTOR::level_centric_data_reposition<T>(components, metadata, target_level, recompose_times, num_intra_level_components, recompose_dims);
-    err = clock_gettime(CLOCK_REALTIME, &end);
-    cout << "Reposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
-    free(refactored_data);
-    err = clock_gettime(CLOCK_REALTIME, &start);
-    MGARD::Recomposer<T> recomposer;
-    recomposer.recompose(data, recompose_dims, recompose_times);
-    err = clock_gettime(CLOCK_REALTIME, &end);
-    cout << "Recomposition time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+    auto data = multigrid_data_recompose(string("refactor_data/refactored.dat"), metadata, tolerance, recompose_dims, recompose_times);
     cout << "Recomposed dims: ";
     size_t num_elements = 1;
     for(int i=0; i<recompose_dims.size(); i++){
@@ -135,11 +48,6 @@ T * test_reposition(const vector<size_t>& dims, vector<size_t>& recompose_dims, 
     }
     cout << endl;
     MGARD::writefile(string("mgard.recomposed").c_str(), data, num_elements);
-    num_elements = 1;
-    for(const auto& d:dims){
-        num_elements *= d;
-    }
-    cout << "Compression ratio = " << num_elements * sizeof(T) * 1.0 / retrieved_size << endl;
     return data;
 }
 
@@ -183,7 +91,7 @@ void test(string filename, const vector<size_t>& dims, int target_level, int opt
     test_refactor(data, dims, target_level, option, reorganization);
     vector<size_t> recompose_dims(dims);
     size_t recompose_times = 0;
-    auto data_recomp = test_reposition<T>(dims, recompose_dims, recompose_times, retrieve_mode, tolerance);
+    auto data_recomp = test_reposition<T>(retrieve_mode, tolerance, recompose_dims, recompose_times);
     // 0 is the finest level in recomposition
     if(recompose_times != target_level){
         T * data_recomp_full = (T *) malloc(num_elements * sizeof(T));
@@ -227,7 +135,7 @@ int main(int argc, char ** argv){
     int option = atoi(argv[4]); // 0 for direct, 1 for rle, 2 for hybrid
     if((option > 2) || (option < 0)) option = 0;
     int retrieve_mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error
-    if((retrieve_mode > 2) || (retrieve_mode < 1)) retrieve_mode = 1;
+    if((retrieve_mode > 3) || (retrieve_mode < 1)) retrieve_mode = 1;
     double tolerance = atof(argv[6]);   // error tolerance 
     int reorganization = atoi(argv[7]);   // enable data reorganization 
     const int num_dims = atoi(argv[8]);

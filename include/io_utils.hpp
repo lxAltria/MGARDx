@@ -1,6 +1,13 @@
+#ifndef _IO_UTILS_HPP
+#define _IO_UTILS_HPP
+
 #include <cstring>
-#include <fstream>
-#include "mpi.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+namespace IO{
 
 template <class T>
 void posix_write(std::string filename, T * data, size_t num_elements){
@@ -27,3 +34,6 @@ void clear_cache(){
   fout << command;
   fout.close();
 }
+
+}
+#endif
