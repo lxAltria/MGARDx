@@ -395,6 +395,14 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             free(buffer);
         }
     }
+    auto t = metadata.component_sizes;
+    for(int i=0; i<t.size(); i++){
+        for(int j=0; j<t[i].size(); j++){
+            cout << t[i][j] << " ";
+        }
+        cout << endl;
+    }
+    cout << endl;
     return level_components;
 }
 
@@ -453,7 +461,6 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             // release reconstructed component
             free(buffer);
         }
-
     }
     return data;
 }

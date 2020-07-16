@@ -10,7 +10,7 @@ namespace REFACTOR{
 using namespace std;
 
 template <class T>
-size_t collect_data_3d(const T * data, const size_t n1, const size_t n2, const size_t n3, const size_t dim0_offset, const size_t dim1_offset, const int block_size, T * buffer){
+size_t collect_data_3d(const T * data, const size_t n1, const size_t n2, const size_t n3, const size_t dim0_offset, const size_t dim1_offset, T * buffer){
     T * buffer_pos = buffer;
     const T * cur_data_pos = data;
     for(int ii=0; ii<n1; ii++){
@@ -25,7 +25,7 @@ size_t collect_data_3d(const T * data, const size_t n1, const size_t n2, const s
     return n1 * n2 * n3;
 }
 template <class T>
-size_t reposition_data_3d(const T * buffer, const size_t n1, const size_t n2, const size_t n3, const size_t dim0_offset, const size_t dim1_offset, const int block_size, T * data){
+size_t reposition_data_3d(const T * buffer, const size_t n1, const size_t n2, const size_t n3, const size_t dim0_offset, const size_t dim1_offset, T * data){
     const T * buffer_pos = buffer; 
     T * cur_data_pos = data;
     for(int ii=0; ii<n1; ii++){
@@ -125,7 +125,7 @@ void interleave_level_coefficients_3d_blocked(const T * data, const vector<size_
     size_t n3_coeff = dims_fine[2] - n3_nodal;
     size_t dim0_offset = dims[1] * dims[2];
     size_t dim1_offset = dims[2];
-    const int block_size = 1;
+    const int block_size = 2;
     if(n1_nodal * n2_nodal * n3_nodal == 0){
         collect_data_3d_blocked(data, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, buffer);
     }
@@ -145,6 +145,38 @@ void interleave_level_coefficients_3d_blocked(const T * data, const vector<size_
         buffer_pos += collect_data_3d_blocked(coeff_nodal_coeff_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
         buffer_pos += collect_data_3d_blocked(coeff_coeff_nodal_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, buffer_pos);
         buffer_pos += collect_data_3d_blocked(coeff_coeff_coeff_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
+    }
+}
+template <class T>
+void reposition_level_coefficients_3d_blocked(const T * buffer, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * data){
+    size_t n1_nodal = dims_coasre[0];
+    size_t n2_nodal = dims_coasre[1];
+    size_t n3_nodal = dims_coasre[2];
+    size_t n1_coeff = dims_fine[0] - n1_nodal;
+    size_t n2_coeff = dims_fine[1] - n2_nodal;
+    size_t n3_coeff = dims_fine[2] - n3_nodal;
+    size_t dim0_offset = dims[1] * dims[2];
+    size_t dim1_offset = dims[2];
+    const int block_size = 2;
+    if(n1_nodal * n2_nodal * n3_nodal == 0){
+        reposition_data_3d_blocked(buffer, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, data);
+    }
+    else{
+        T * nodal_nodal_coeff_pos = data + n3_nodal;
+        T * nodal_coeff_nodal_pos = data + n2_nodal * dim1_offset;
+        T * nodal_coeff_coeff_pos = nodal_coeff_nodal_pos + n3_nodal;
+        T * coeff_nodal_nodal_pos = data + n1_nodal * dim0_offset;
+        T * coeff_nodal_coeff_pos = coeff_nodal_nodal_pos + n3_nodal;
+        T * coeff_coeff_nodal_pos = coeff_nodal_nodal_pos + n2_nodal * dim1_offset;
+        T * coeff_coeff_coeff_pos = coeff_coeff_nodal_pos + n3_nodal;
+        const T * buffer_pos = buffer;
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_nodal, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, nodal_nodal_coeff_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_nodal, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, nodal_coeff_nodal_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_nodal, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, nodal_coeff_coeff_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_coeff, n2_nodal, n3_nodal, dim0_offset, dim1_offset, block_size, coeff_nodal_nodal_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, coeff_nodal_coeff_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, coeff_coeff_nodal_pos);
+        buffer_pos += reposition_data_3d_blocked(buffer_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, coeff_coeff_coeff_pos);
     }
 }
 // interleave 3d data by block and a space filling curving between components
@@ -285,9 +317,8 @@ void interleave_level_coefficients_3d(const T * data, const vector<size_t>& dims
     size_t n3_coeff = dims_fine[2] - n3_nodal;
     size_t dim0_offset = dims[1] * dims[2];
     size_t dim1_offset = dims[2];
-    const int block_size = 1;
     if(n1_nodal * n2_nodal * n3_nodal == 0){
-        collect_data_3d(data, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, buffer);
+        collect_data_3d(data, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, buffer);
     }
     else{
         const T * nodal_nodal_coeff_pos = data + n3_nodal;
@@ -298,13 +329,13 @@ void interleave_level_coefficients_3d(const T * data, const vector<size_t>& dims
         const T * coeff_coeff_nodal_pos = coeff_nodal_nodal_pos + n2_nodal * dim1_offset;
         const T * coeff_coeff_coeff_pos = coeff_coeff_nodal_pos + n3_nodal;
         T * buffer_pos = buffer;
-        buffer_pos += collect_data_3d(nodal_nodal_coeff_pos, n1_nodal, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(nodal_coeff_nodal_pos, n1_nodal, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(nodal_coeff_coeff_pos, n1_nodal, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(coeff_nodal_nodal_pos, n1_coeff, n2_nodal, n3_nodal, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(coeff_nodal_coeff_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(coeff_coeff_nodal_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, buffer_pos);
-        buffer_pos += collect_data_3d(coeff_coeff_coeff_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, buffer_pos);
+        buffer_pos += collect_data_3d(nodal_nodal_coeff_pos, n1_nodal, n2_nodal, n3_coeff, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(nodal_coeff_nodal_pos, n1_nodal, n2_coeff, n3_nodal, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(nodal_coeff_coeff_pos, n1_nodal, n2_coeff, n3_coeff, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(coeff_nodal_nodal_pos, n1_coeff, n2_nodal, n3_nodal, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(coeff_nodal_coeff_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(coeff_coeff_nodal_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, buffer_pos);
+        buffer_pos += collect_data_3d(coeff_coeff_coeff_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, buffer_pos);
     }
 }
 // put coeffcients in the finer level to the correct position
@@ -342,7 +373,7 @@ void reposition_level_coefficients_3d(const T * buffer, const vector<size_t>& di
     size_t dim1_offset = dims[2];
     const int block_size = 1;
     if(n1_nodal * n2_nodal * n3_nodal == 0){
-        reposition_data_3d(buffer, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, data);
+        reposition_data_3d(buffer, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, data);
     }
     else{
         T * nodal_nodal_coeff_pos = data + n3_nodal;
@@ -353,13 +384,13 @@ void reposition_level_coefficients_3d(const T * buffer, const vector<size_t>& di
         T * coeff_coeff_nodal_pos = coeff_nodal_nodal_pos + n2_nodal * dim1_offset;
         T * coeff_coeff_coeff_pos = coeff_coeff_nodal_pos + n3_nodal;
         const T * buffer_pos = buffer;
-        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, nodal_nodal_coeff_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, nodal_coeff_nodal_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, nodal_coeff_coeff_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_nodal, n3_nodal, dim0_offset, dim1_offset, block_size, coeff_nodal_nodal_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, block_size, coeff_nodal_coeff_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, block_size, coeff_coeff_nodal_pos);
-        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, block_size, coeff_coeff_coeff_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_nodal, n3_coeff, dim0_offset, dim1_offset, nodal_nodal_coeff_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_coeff, n3_nodal, dim0_offset, dim1_offset, nodal_coeff_nodal_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_nodal, n2_coeff, n3_coeff, dim0_offset, dim1_offset, nodal_coeff_coeff_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_nodal, n3_nodal, dim0_offset, dim1_offset, coeff_nodal_nodal_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_nodal, n3_coeff, dim0_offset, dim1_offset, coeff_nodal_coeff_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_coeff, n3_nodal, dim0_offset, dim1_offset, coeff_coeff_nodal_pos);
+        buffer_pos += reposition_data_3d(buffer_pos, n1_coeff, n2_coeff, n3_coeff, dim0_offset, dim1_offset, coeff_coeff_coeff_pos);
     }
 }
 
