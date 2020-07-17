@@ -449,7 +449,8 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             struct timespec start, end;
             int err = clock_gettime(CLOCK_REALTIME, &start);
             if(metadata.option == ENCODING_DEFAULT){
-                buffer = progressive_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);
+                // add size of lossless decoding
+                buffer = progressive_decoding<T>(level_components[i], metadata.component_sizes[i], level_elements[i], level_exp, encoded_bitplanes);
             }
             else if(metadata.option == ENCODING_RLE){
                 buffer = progressive_decoding_with_rle_compression<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes);

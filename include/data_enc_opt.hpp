@@ -51,13 +51,14 @@ private:
 /*******************************************/
 
 // Runlength encoder
+#define RLE_CUTOFF_COUNT 512
 class RunlengthEncoder : public EncoderInterface{
 public:
     RunlengthEncoder(){}
     void encode(bool bit){
         if(lastbit == bit){
             count ++;
-            if(count == 256){
+            if(count == RLE_CUTOFF_COUNT){
                 length.push_back(count);
                 count = 0;
                 lastbit = !bit;
@@ -86,7 +87,7 @@ public:
         *reinterpret_cast<size_t*>(encoded_pos) = length.size();
         encoded_pos += sizeof(size_t);
         auto encoder = SZ::HuffmanEncoder<int>();
-        encoder.preprocess_encode(length, 2*256);
+        encoder.preprocess_encode(length, 2*RLE_CUTOFF_COUNT);
         encoder.save(encoded_pos);
         encoder.encode(length, encoded_pos);
         encoder.postprocess_encode();
