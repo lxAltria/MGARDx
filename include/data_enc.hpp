@@ -18,6 +18,7 @@ using namespace std;
 #define ENCODING_DEFAULT 0
 #define ENCODING_RLE 1
 #define ENCODING_HYBRID 2
+#define ENCODING_EMBEDDED 3
 
 // encode the intra level components progressively
 /*
@@ -190,6 +191,149 @@ T * progressive_hybrid_decoding(const vector<const unsigned char*>& level_compon
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     return byte_wise_hybrid_decoding<T>(level_components, n, level_exp, num_level_component, bitplane_indicator);
+}
+
+#define EMBEDDED_ENCODING_PRE_RLE 8
+#define EMBEDDED_ENCODING_SUF_RLE 25
+template <class T>
+vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator){
+    vector<unsigned char*> intra_level_components;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
+    vector<unsigned char *> byte_encoders;
+    for(int i=0; i<num_level_component; i++){
+        unsigned char * buffer = (unsigned char *) malloc(level_component_size);
+        intra_level_components.push_back(buffer);
+        byte_encoders.push_back(buffer);
+        // set indicator
+        bitplane_indicator.push_back(0);
+    }    
+    size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
+    for(int k=0; k<num_level_component; k++){
+        encoded_sizes.push_back(buffer_index);
+    }
+    struct timespec start, end;
+    bool use_rle = true;
+    vector<RunlengthEncoder*> pre_encoders;
+    for(int i=1; i<EMBEDDED_ENCODING_PRE_RLE; i++){
+        pre_encoders.push_back(new RunlengthEncoder());
+    }
+    // skip sign because sign is recorded with the first value data
+    for(int i=0; i<buffer_index; i++){
+        unsigned char sign_datum = byte_encoders[0][i];
+        bool sign_recorded[8] = {false};
+        // iterate bit-planes
+        for(int k=1; k<EMBEDDED_ENCODING_PRE_RLE; k++){
+            unsigned char datum = byte_encoders[k][i];
+            // iterate bit of extracted char
+            for(int j=0; j<8; j++){
+                if(datum & 1){
+                    pre_encoders[k - 1]->encode(true);
+                    if(!sign_recorded[j]){
+                        // record sign
+                        pre_encoders[k - 1]->encode((sign_datum >> j) & 1);
+                        sign_recorded[j] = true;
+                    }
+                }
+                else{
+                    pre_encoders[k - 1]->encode(false);
+                }
+                datum >>= 1;
+                // if no '1' appears
+                // encode to the last RLE bit-plane        
+                if((k == EMBEDDED_ENCODING_PRE_RLE - 1) && (!sign_recorded[j])){
+                    pre_encoders.back()->encode((sign_datum >> j) & 1);
+                }
+            }
+        }
+    }
+    // sign is distributed to other bit-planes
+    free(intra_level_components[0]);
+    intra_level_components[0] = NULL;
+    encoded_sizes[0] = 0;
+    bitplane_indicator[0] = 1;
+    for(int k=1; k<EMBEDDED_ENCODING_PRE_RLE; k++){
+        free(intra_level_components[k]);
+        pre_encoders[k - 1]->flush();
+        intra_level_components[k] = pre_encoders[k - 1]->save();
+        encoded_sizes[k] = pre_encoders[k - 1]->size();
+        bitplane_indicator[k] = 1;
+        delete pre_encoders[k - 1];
+    }
+    for(int k=EMBEDDED_ENCODING_SUF_RLE; k<num_level_component; k++){
+        RunlengthEncoder rle;
+        for(int i=0; i<buffer_index; i++){
+            unsigned char datum = byte_encoders[k][i];
+            for(int j=0; j<8; j++){
+                rle.encode(datum & 1);
+                datum >>= 1;            
+            }
+        }
+        rle.flush();
+        free(intra_level_components[k]);
+        // change content of level components, encoded size and indicator
+        intra_level_components[k] = rle.save();
+        encoded_sizes[k] = rle.size();
+        bitplane_indicator[k] = 1;
+    }
+    return intra_level_components;
+}
+
+template <class T>
+T * progressive_hybrid_embedded_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
+    T * level_data = (T *) malloc(n * sizeof(T));
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    vector<DecoderInterface*> decoders;
+    const int rle_switch_index_1 = (EMBEDDED_ENCODING_PRE_RLE > num_level_component) ? num_level_component : EMBEDDED_ENCODING_PRE_RLE;
+    const int rle_switch_index_2 = (EMBEDDED_ENCODING_SUF_RLE > num_level_component) ? num_level_component : EMBEDDED_ENCODING_SUF_RLE;
+    for(int i=1; i<rle_switch_index_1; i++){
+        decoders.push_back(new RunlengthDecoder());
+        decoders.back()->load(level_components[i]);
+    }
+    for(int i=rle_switch_index_1; i<rle_switch_index_2; i++){
+        decoders.push_back(new BitDecoder());
+        decoders.back()->load(level_components[i]);        
+    }
+    for(int i=rle_switch_index_2; i<num_level_component; i++){
+        decoders.push_back(new RunlengthDecoder());
+        decoders.back()->load(level_components[i]);
+    }
+    T * data_pos = level_data;
+    for(int i=0; i<n; i++){
+        // decode each bit of the data for each level component
+        bool sign = false;
+        unsigned int fp = 0;
+        bool first_bit = true;
+        // decode the first rle_switch_index_1 bits to get sign
+        for(int j=1; j<rle_switch_index_1; j++){
+            unsigned int current_bit = decoders[j-1]->decode();
+            if(current_bit && first_bit){
+                // decode sign
+                sign = decoders[j-1]->decode();
+                first_bit = false;
+            }
+            fp = (fp << 1) + current_bit;
+        }
+        // if no '1' appears
+        if((EMBEDDED_ENCODING_PRE_RLE <= num_level_component) && first_bit){
+            sign = decoders[rle_switch_index_1 - 1 - 1]->decode();
+        }
+        for(int j=rle_switch_index_1; j<num_level_component; j++){
+            unsigned int current_bit = decoders[j-1]->decode();
+            fp = (fp << 1) + current_bit;            
+        }
+        long int fix_point = fp;
+        if(sign) fix_point = -fix_point;
+        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+        data_pos ++;
+    }
+    for(int i=0; i<decoders.size(); i++){
+        delete decoders[i];
+    }
+    return level_data;
 }
 
 }

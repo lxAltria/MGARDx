@@ -132,9 +132,9 @@ int main(int argc, char ** argv){
     string filename = string(argv[1]);
     int type = atoi(argv[2]); // 0 for float, 1 for double
     int target_level = atoi(argv[3]);
-    int option = atoi(argv[4]); // 0 for direct, 1 for rle, 2 for hybrid
-    if((option > 2) || (option < 0)) option = 0;
-    int retrieve_mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error
+    int option = atoi(argv[4]); // 0 for direct, 1 for rle, 2 for hybrid, 3 for embedded
+    if((option > 3) || (option < 0)) option = 0;
+    int retrieve_mode = atoi(argv[5]);   // 1 for max_e, 2 for squared error, 3 for PSNR
     if((retrieve_mode > 3) || (retrieve_mode < 1)) retrieve_mode = 1;
     double tolerance = atof(argv[6]);   // error tolerance 
     int reorganization = atoi(argv[7]);   // enable data reorganization 

@@ -389,6 +389,11 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                 auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
             }
+            else if(metadata.option == ENCODING_EMBEDDED){                
+                vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
+                auto intra_level_components = progressive_hybrid_embedded_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
+                level_components.push_back(intra_level_components);
+            }
             err = clock_gettime(CLOCK_REALTIME, &end);
             cout << "Encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             // release extracted component
@@ -452,6 +457,10 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             else if(metadata.option == ENCODING_HYBRID){
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 buffer = progressive_hybrid_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
+            }
+            else if(metadata.option == ENCODING_EMBEDDED){
+                const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
+                buffer = progressive_hybrid_embedded_decoding<T>(level_components[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
             }
             err = clock_gettime(CLOCK_REALTIME, &end);
             cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
@@ -524,7 +533,8 @@ Metadata<T> multigrid_data_refactor(vector<T>& data, const vector<size_t>& dims,
     // write metadata
     for(int i=0; i<components.size(); i++){
         for(int j=0; j<components[i].size(); j++){
-            free(components[i][j]);
+            if(components[i][j]) // skip null pointer for the sign in embedded encoding
+                free(components[i][j]);
         }
     }
     return metadata;
