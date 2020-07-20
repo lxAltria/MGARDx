@@ -30,51 +30,30 @@ public:
 
 // modified from ZFP bitstream
 class BitEncoder : public EncoderInterface{
-protected:
-    // bit reversal table used in encoding
-    static unsigned char reverse(unsigned char x){
-        static const unsigned char lut[] = {
-        0x00,0x80,0x40,0xc0,0x20,0xa0,0x60,0xe0,0x10,0x90,0x50,0xd0,0x30,0xb0,0x70,0xf0,
-        0x08,0x88,0x48,0xc8,0x28,0xa8,0x68,0xe8,0x18,0x98,0x58,0xd8,0x38,0xb8,0x78,0xf8,
-        0x04,0x84,0x44,0xc4,0x24,0xa4,0x64,0xe4,0x14,0x94,0x54,0xd4,0x34,0xb4,0x74,0xf4,
-        0x0c,0x8c,0x4c,0xcc,0x2c,0xac,0x6c,0xec,0x1c,0x9c,0x5c,0xdc,0x3c,0xbc,0x7c,0xfc,
-        0x02,0x82,0x42,0xc2,0x22,0xa2,0x62,0xe2,0x12,0x92,0x52,0xd2,0x32,0xb2,0x72,0xf2,
-        0x0a,0x8a,0x4a,0xca,0x2a,0xaa,0x6a,0xea,0x1a,0x9a,0x5a,0xda,0x3a,0xba,0x7a,0xfa,
-        0x06,0x86,0x46,0xc6,0x26,0xa6,0x66,0xe6,0x16,0x96,0x56,0xd6,0x36,0xb6,0x76,0xf6,
-        0x0e,0x8e,0x4e,0xce,0x2e,0xae,0x6e,0xee,0x1e,0x9e,0x5e,0xde,0x3e,0xbe,0x7e,0xfe,
-        0x01,0x81,0x41,0xc1,0x21,0xa1,0x61,0xe1,0x11,0x91,0x51,0xd1,0x31,0xb1,0x71,0xf1,
-        0x09,0x89,0x49,0xc9,0x29,0xa9,0x69,0xe9,0x19,0x99,0x59,0xd9,0x39,0xb9,0x79,0xf9,
-        0x05,0x85,0x45,0xc5,0x25,0xa5,0x65,0xe5,0x15,0x95,0x55,0xd5,0x35,0xb5,0x75,0xf5,
-        0x0d,0x8d,0x4d,0xcd,0x2d,0xad,0x6d,0xed,0x1d,0x9d,0x5d,0xdd,0x3d,0xbd,0x7d,0xfd,
-        0x03,0x83,0x43,0xc3,0x23,0xa3,0x63,0xe3,0x13,0x93,0x53,0xd3,0x33,0xb3,0x73,0xf3,
-        0x0b,0x8b,0x4b,0xcb,0x2b,0xab,0x6b,0xeb,0x1b,0x9b,0x5b,0xdb,0x3b,0xbb,0x7b,0xfb,
-        0x07,0x87,0x47,0xc7,0x27,0xa7,0x67,0xe7,0x17,0x97,0x57,0xd7,0x37,0xb7,0x77,0xf7,
-        0x0f,0x8f,0x4f,0xcf,0x2f,0xaf,0x6f,0xef,0x1f,0x9f,0x5f,0xdf,0x3f,0xbf,0x7f,0xff,
-        };
-        return lut[x];
-    }
 public:
     BitEncoder() = default;
     BitEncoder(unsigned char * array) : start(array), current(array){};
     ~BitEncoder() = default;
     inline void encode(bool bit){
-        buffer = (buffer << 1u) + bit;
-        if(buffer >= 0x100u){
-            *current++ = reverse(buffer - 0x100u);
-            buffer = 1u;
+        buffer += bit << position;
+        position ++;
+        if(position == 8){
+            *current++ = buffer;
+            buffer = 0;
+            position = 0;
         }        
     }
     void flush(){
-        while (buffer != 1u) encode(false);
+        while (position != 0) encode(false);
     }
     size_t size(){
         if(lossless) return lossless_size;
-        return (buffer == 1u) ? current - start : current - start + 1;
+        return (position == 0) ? current - start : current - start + 1;
     }
     unsigned char * save(bool use_lossless){
         if(use_lossless){
             unsigned char * lossless_compressed = NULL;
-            size_t encode_size = (buffer == 1u) ? current - start : current - start + 1;
+            size_t encode_size = (position == 0) ? current - start : current - start + 1;
             lossless_size = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, start, encode_size, &lossless_compressed);
             lossless = true;
             return lossless_compressed;
@@ -82,7 +61,8 @@ public:
         return start;
     }
 private:
-    unsigned int buffer = 0;
+    unsigned char buffer = 0;
+    unsigned char position = 0;
     unsigned char * const start = NULL;
     unsigned char * current = NULL;
     bool lossless = false;
@@ -450,88 +430,6 @@ T * byte_wise_direct_decoding(const vector<const unsigned char*>& level_componen
     }
     return level_data;
 }
-
-// encode bitplanes by byte (unrolled version), apply sign postpone which records sign after the first 1
-/*
-@params data: coefficient data
-@params n: number of coefficients in current level
-@params level_exp: exponent of max level element
-@params num_level_component: number of encoded bitplanes
-@params byte_encoders: vector of byte-wise encoder
-*/
-// template <class T>
-// size_t byte_wise_direct_encoding_with_sign_postpone(const T * data, int n, int level_exp, int num_level_component, vector<unsigned char *>& byte_encoders){
-//     size_t data_index = 0;
-//     size_t buffer_index = 0;
-//     for(int i=0; i<n/8; i++){
-//         unsigned char tmp = 0;
-//         T cur_data;
-//         long int fix_point;
-//         bool sign0, sign1, sign2, sign3, sign4, sign5, sign6, sign7;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign0 = cur_data < 0;
-//         unsigned int fp0 = sign0 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign1 = cur_data < 0;
-//         unsigned int fp1 = sign1 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign2 = cur_data < 0;
-//         unsigned int fp2 = sign2 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign3 = cur_data < 0;
-//         unsigned int fp3 = sign3 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign4 = cur_data < 0;
-//         unsigned int fp4 = sign4 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign5 = cur_data < 0;
-//         unsigned int fp5 = sign5 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign6 = cur_data < 0;
-//         unsigned int fp6 = sign6 ? -fix_point : +fix_point;
-//         cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
-//         fix_point = (long int) cur_data;
-//         sign7 = cur_data < 0;
-//         unsigned int fp7 = sign7 ? -fix_point : +fix_point;
-//         byte_encoders[0][buffer_index] = tmp;
-//         for(int k=num_level_component - 2; k>=0; k--){
-//             byte_encoders[num_level_component - 1 - k][buffer_index] 
-//                 =   ((fp0 >> k) & 1) + (((fp1 >> k) & 1) << 1) 
-//                     + (((fp2 >> k) & 1) << 2) + (((fp3 >> k) & 1) << 3)
-//                     + (((fp4 >> k) & 1) << 4) + (((fp5 >> k) & 1) << 5)
-//                     + (((fp6 >> k) & 1) << 6) + (((fp7 >> k) & 1) << 7);
-//         }
-//         buffer_index ++;
-//     }
-//     {
-//         // leftover
-//         int rest = n % 8;
-//         unsigned char tmp[32] = {0};
-//         for(int j=0; j<rest; j++){
-//             T val = data[data_index ++];
-//             T cur_data = ldexp(val, num_level_component - 1 - level_exp);
-//             long int fix_point = (long int) cur_data;
-//             unsigned int sign = val < 0;
-//             unsigned int fp = sign ? -fix_point : +fix_point;
-//             tmp[0] += sign << j;
-//             for(int k=num_level_component - 2; k>=0; k--){
-//                 tmp[num_level_component - 1 - k] += ((fp >> k) & 1) << j;
-//             }
-//         }
-//         for(int k=0; k<num_level_component; k++){
-//             byte_encoders[k][buffer_index] = tmp[k];
-//         }
-//         buffer_index ++;
-//     }
-//     return buffer_index;
-// }
 
 template <class T>
 T * direct_hybrid_decoding(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){

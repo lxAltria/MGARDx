@@ -393,6 +393,10 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                 auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
                 level_components.push_back(intra_level_components);
             }
+            else if(metadata.option == ENCODING_DEFAULT_SIGN_POSTPONE){
+                auto intra_level_components = progressive_encoding_with_sign_postpone(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
+                level_components.push_back(intra_level_components);
+            }
             else if(metadata.option == ENCODING_RLE){
                 auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
                 level_components.push_back(intra_level_components);
@@ -402,7 +406,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                 auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor, metadata.lossless_indicators[i]);
                 level_components.push_back(intra_level_components);
             }
-            else if(metadata.option == ENCODING_EMBEDDED){                
+            else if(metadata.option == ENCODING_HYBRID_SIGN_POSTPONE){                
                 vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 auto intra_level_components = progressive_hybrid_embedded_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor, metadata.lossless_indicators[i]);
                 level_components.push_back(intra_level_components);
@@ -465,6 +469,9 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
                 // add size of lossless decoding
                 buffer = progressive_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
             }
+            else if(metadata.option == ENCODING_DEFAULT_SIGN_POSTPONE){
+                buffer = progressive_decoding_with_sign_postpone<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
+            }
             else if(metadata.option == ENCODING_RLE){
                 buffer = progressive_decoding_with_rle_compression<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
             }
@@ -472,7 +479,7 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 buffer = progressive_hybrid_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
             }
-            else if(metadata.option == ENCODING_EMBEDDED){
+            else if(metadata.option == ENCODING_HYBRID_SIGN_POSTPONE){
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
                 buffer = progressive_hybrid_embedded_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
             }

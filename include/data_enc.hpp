@@ -16,9 +16,10 @@ namespace REFACTOR{
 using namespace std;
 
 #define ENCODING_DEFAULT 0
-#define ENCODING_RLE 1
-#define ENCODING_HYBRID 2
-#define ENCODING_EMBEDDED 3
+#define ENCODING_DEFAULT_SIGN_POSTPONE 1
+#define ENCODING_RLE 2
+#define ENCODING_HYBRID 3
+#define ENCODING_HYBRID_SIGN_POSTPONE 4
 
 // encode the intra level components progressively
 /*
@@ -32,9 +33,9 @@ template <class T>
 vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "Using unrolled byte-wise direct encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
@@ -42,7 +43,6 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         byte_encoders.push_back(buffer);
     }    
     size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
-    cout << "start lossless compression: " << buffer_index << endl;
     // add lossless compression
     bool lossless = true;
     for(int k=0; k<num_level_component; k++){
@@ -88,6 +88,109 @@ T * progressive_decoding(const vector<const unsigned char*>& level_components, c
     return level_data;
 }
 
+// encode the intra level components progressively, postpone sign recording to the first non-zero bit
+/*
+@params data: coefficient data
+@params n: number of coefficients in current level
+@params level_exp: exponent of max level element
+@params num_level_component: number of encoded bitplanes
+@params encoded_sizes: size of encoded data
+*/
+template <class T>
+vector<unsigned char*> progressive_encoding_with_sign_postpone(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
+    vector<unsigned char*> intra_level_components;
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "Using direct encoding with sign postpone" << endl;
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    // push back sign bit-plane, nothing in this case
+    intra_level_components.push_back(NULL);
+    for(int i=1; i<num_level_component; i++){
+        unsigned char * buffer = (unsigned char *) malloc(2 * level_component_size);
+        intra_level_components.push_back(buffer);
+    }
+    vector<BitEncoder *> encoders;
+    // skip sign bit-plane because it is postponed
+    for(int i=1; i<num_level_component; i++){
+        encoders.push_back(new BitEncoder(intra_level_components[i]));
+    }
+    for(int i=0; i<n; i++){
+        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
+        long int fix_point = (long int) cur_data;
+        bool sign = data[i] < 0;
+        unsigned int fp = sign ? -fix_point : +fix_point;
+        // flag for whether it is the first non-zero value bit
+        bool first_bit = true;
+        int bits = num_level_component - 2;
+        for(int k=1; k<num_level_component; k++){
+            bool current_bit = (fp >> bits) & 1;
+            encoders[k-1]->encode(current_bit);
+            if(first_bit && current_bit){
+                // record sign
+                encoders[k-1]->encode(sign);
+                first_bit = false;
+            }
+            bits --;
+        }
+    }
+    // skip sign bitplane
+    encoded_sizes.push_back(0);
+    use_lossless.push_back(false);
+    // add lossless compression
+    bool lossless = true;
+    for(int k=1; k<num_level_component; k++){
+        encoders[k-1]->flush();
+        if(lossless){
+            unsigned char * lossless_compressed = encoders[k-1]->save(true);
+            free(intra_level_components[k]);
+            intra_level_components[k] = lossless_compressed;
+            use_lossless.push_back(lossless);
+            encoded_sizes.push_back(encoders[k-1]->size());
+        }
+        else{
+            use_lossless.push_back(lossless);
+            encoded_sizes.push_back(encoders[k-1]->size());
+        }
+        delete encoders[k-1];
+    }
+    return intra_level_components;
+}
+template <class T>
+T * progressive_decoding_with_sign_postpone(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component){
+    T * level_data = (T *) malloc(n * sizeof(T));
+    cout << "level element = " << n << endl;
+    cout << "num_level_component = " << num_level_component << endl;
+    vector<BitDecoder*> decoders;
+    for(int i=1; i<num_level_component; i++){
+        decoders.push_back(new BitDecoder(use_lossless[i], level_sizes[i]));
+        decoders.back()->load(level_components[i]);
+    }
+    T * data_pos = level_data;
+    for(int i=0; i<n; i++){
+        // decode each bit of the data for each level component
+        bool sign = false;
+        unsigned int fp = 0;
+        bool first_bit = true;
+        for(int j=1; j<num_level_component; j++){
+            bool current_bit = decoders[j-1]->decode();
+            if(current_bit && first_bit){
+                // decode sign
+                sign = decoders[j-1]->decode();
+                first_bit = false;
+            }
+            fp = (fp << 1) + current_bit;
+        }
+        long int fix_point = fp;
+        if(sign) fix_point = -fix_point;
+        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+        data_pos ++;
+    }
+    for(int i=0; i<decoders.size(); i++){
+        delete decoders[i];
+    }
+    return level_data;
+}
+
 // encode the intra level components progressively, with runlength encoding on each bit-plane
 /*
 @params data: coefficient data
@@ -99,6 +202,7 @@ T * progressive_decoding(const vector<const unsigned char*>& level_components, c
 template <class T>
 vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
     vector<unsigned char*> intra_level_components;
+    cout << "Using run-length encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     struct timespec start, end;
@@ -176,9 +280,9 @@ template <class T>
 vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator, vector<unsigned char>& use_lossless){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "Using hybrid encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
@@ -244,9 +348,9 @@ template <class T>
 vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator, vector<unsigned char>& use_lossless){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    cout << "Using hybrid encoding with sign postpone" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
