@@ -8,9 +8,11 @@ namespace REFACTOR{
 
 using namespace std;
 
+// Runlength encoder cutoff size
+#define RLE_CUTOFF_COUNT 256
 // index for switching to rle
 #define HYBRID_ENCODING_SUF_RLE 25
-#define EMBEDDED_ENCODING_PRE_RLE 12
+#define EMBEDDED_ENCODING_PRE_RLE 8
 #define EMBEDDED_ENCODING_SUF_RLE 25
 
 class EncoderInterface{
@@ -18,7 +20,7 @@ public:
     virtual void encode(bool) = 0;
     virtual void flush() = 0;
     virtual size_t size() = 0;
-    virtual unsigned char * save(bool use_lossless) = 0;
+    virtual unsigned char * save() = 0;
 };
 
 class DecoderInterface{
@@ -50,14 +52,7 @@ public:
         if(lossless) return lossless_size;
         return (position == 0) ? current - start : current - start + 1;
     }
-    unsigned char * save(bool use_lossless){
-        if(use_lossless){
-            unsigned char * lossless_compressed = NULL;
-            size_t encode_size = (position == 0) ? current - start : current - start + 1;
-            lossless_size = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, start, encode_size, &lossless_compressed);
-            lossless = true;
-            return lossless_compressed;
-        }
+    unsigned char * save(){
         return start;
     }
 private:
@@ -74,24 +69,16 @@ private:
 class BitDecoder : public DecoderInterface{
 public:
     BitDecoder() = default;
-    BitDecoder(bool use_lossless, size_t size) : lossless(use_lossless), lossless_size(size) {};
-    ~BitDecoder(){
-        if(lossless) free(lossless_decompressed);
-    };
-    inline bool decode(){
+    ~BitDecoder() = default;
+    bool decode(){
         if (!(buffer >> 1u)) buffer = 0x100u + *current++;
         bool bit = buffer & 1u;
         buffer >>= 1u;
         return bit;
     }
+    size_t size(){ return (buffer == 1u) ? current - start : current - start + 1; }
     void load(const unsigned char * encoded_data){
-        if(lossless){
-            size_t encoded_size = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, encoded_data, lossless_size, &lossless_decompressed);
-            start = lossless_decompressed;
-        }
-        else{
-            start = encoded_data;
-        }
+        start = encoded_data;
         current = start;
         buffer = 1u;
     }
@@ -99,21 +86,17 @@ private:
     unsigned char const * start = NULL;
     unsigned char const * current = NULL;
     unsigned int buffer = 1u;
-    bool lossless = false;
-    size_t lossless_size = 0;
-    unsigned char * lossless_decompressed = NULL;
 };
 /*******************************************/
 
 // Runlength encoder
-#define RLE_CUTOFF_COUNT 256
 class RunlengthEncoder : public EncoderInterface{
 public:
     RunlengthEncoder(){}
-    inline void encode(bool bit){
+    void encode(bool bit){
         if(lastbit == bit){
             count ++;
-            if(count == RLE_CUTOFF_COUNT){
+            if(count == 256){
                 length.push_back(count);
                 count = 0;
                 lastbit = !bit;
@@ -135,25 +118,18 @@ public:
     size_t size(){
         return encoded_size;
     }
-    unsigned char * save(bool use_lossless){
+    unsigned char * save(){
         // Huffman
         unsigned char * encoded = (unsigned char *) malloc(length.size() * sizeof(int));
         auto encoded_pos = encoded;
         *reinterpret_cast<size_t*>(encoded_pos) = length.size();
         encoded_pos += sizeof(size_t);
         auto encoder = SZ::HuffmanEncoder<int>();
-        encoder.preprocess_encode(length, 2*RLE_CUTOFF_COUNT);
+        encoder.preprocess_encode(length, 2*256);
         encoder.save(encoded_pos);
         encoder.encode(length, encoded_pos);
         encoder.postprocess_encode();
         encoded_size = encoded_pos - encoded;
-        if(use_lossless){
-            unsigned char * lossless_compressed = NULL;
-            size_t lossless_size = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, encoded, encoded_size, &lossless_compressed);
-            free(encoded);
-            encoded_size = lossless_size;
-            return lossless_compressed;
-        }
         return encoded;
     }
 private:
@@ -167,9 +143,8 @@ private:
 class RunlengthDecoder : public DecoderInterface{
 public:
     RunlengthDecoder() = default;
-    RunlengthDecoder(bool use_lossless, size_t size) : lossless(use_lossless), lossless_size(size){};
     ~RunlengthDecoder() = default;
-    inline bool decode(){
+    bool decode(){
         if(count){
             count --;
             return lastbit;
@@ -182,11 +157,6 @@ public:
     }
     void load(const unsigned char * encoded){
         const unsigned char * encoded_pos = encoded;
-        unsigned char * lossless_compressed = NULL;
-        if(lossless){
-            size_t encoded_size = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, encoded, lossless_size, &lossless_compressed);
-            encoded_pos = lossless_compressed;
-        }
         size_t n = *reinterpret_cast<const size_t*>(encoded_pos);
         encoded_pos += sizeof(size_t);
         auto encoder = SZ::HuffmanEncoder<int>();
@@ -194,7 +164,6 @@ public:
         encoder.load(encoded_pos, remaining_length);
         length = encoder.decode(encoded_pos, n);
         encoder.postprocess_decode();
-        if(lossless) free(lossless_compressed);
         count = 0;
         index = 0;
         // toggle lastbit to true such that the first decode would be false since count=0
@@ -205,8 +174,6 @@ private:
     bool lastbit = false;
     int count = 0;
     int index = 0;
-    bool lossless = false;
-    size_t lossless_size = 0;
 };
 
 // encode bitplanes by byte
@@ -352,6 +319,32 @@ size_t byte_wise_direct_encoding_unrolled(const T * data, int n, int level_exp, 
 }
 
 template <class T>
+T * direct_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
+    T * level_data = (T *) malloc(n * sizeof(T));
+    size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+    vector<BitDecoder> decoders;
+    for(int i=0; i<num_level_component; i++){
+        decoders.push_back(BitDecoder());
+        decoders[i].load(level_components[i]);
+    }
+    T * data_pos = level_data;
+    for(int i=0; i<n; i++){
+        // decode each bit of the data for each level component
+        bool sign = decoders[0].decode();
+        unsigned int fp = 0;
+        for(int j=1; j<num_level_component; j++){
+            unsigned int current_bit = decoders[j].decode();
+            fp = (fp << 1) + current_bit;
+        }
+        long int fix_point = fp;
+        if(sign) fix_point = -fix_point;
+        *data_pos = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+        data_pos ++;
+    }
+    return level_data;
+}
+
+template <class T>
 T * byte_wise_direct_decoding(const vector<const unsigned char*>& level_components, int n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
@@ -432,7 +425,7 @@ T * byte_wise_direct_decoding(const vector<const unsigned char*>& level_componen
 }
 
 template <class T>
-T * direct_hybrid_decoding(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
+T * direct_hybrid_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -440,11 +433,11 @@ T * direct_hybrid_decoding(const vector<const unsigned char*>& level_components,
     for(int i=0; i<num_level_component; i++){
         switch(bitplane_indicator[i]){
             case 0:{
-                decoders.push_back(new BitDecoder(use_lossless[i], level_sizes[i]));
+                decoders.push_back(new BitDecoder());
                 break;
             }
             case 1:{
-                decoders.push_back(new RunlengthDecoder(use_lossless[i], level_sizes[i]));
+                decoders.push_back(new RunlengthDecoder());
                 break;
             }
             default:{

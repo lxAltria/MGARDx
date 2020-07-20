@@ -30,12 +30,12 @@ using namespace std;
 @params encoded_sizes: size of encoded data
 */
 template <class T>
-vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
+vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
-    cout << "Using unrolled byte-wise direct encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
@@ -43,61 +43,22 @@ vector<unsigned char*> progressive_encoding(T const * data, size_t n, int level_
         byte_encoders.push_back(buffer);
     }    
     size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
-    // add lossless compression
-    bool lossless = true;
     for(int k=0; k<num_level_component; k++){
-        if(lossless){
-            unsigned char * lossless_compressed = NULL;
-            size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, intra_level_components[k], buffer_index, &lossless_compressed);
-            free(intra_level_components[k]);
-            intra_level_components[k] = lossless_compressed;
-            use_lossless.push_back(lossless);
-            encoded_sizes.push_back(lossless_length);
-        }
-        else{
-            use_lossless.push_back(lossless);
-            encoded_sizes.push_back(buffer_index);
-        }
+        encoded_sizes.push_back(buffer_index);
     }
     return intra_level_components;
 }
 
+
 template <class T>
-T * progressive_decoding(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component){
+T * progressive_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    // return byte_wise_direct_decoding<T>(level_components, n, level_exp, num_level_component);
-    // lossless decompression
-    vector<unsigned char*> level_components_decompressed;
-    vector<const unsigned char*> level_components_const;
-    for(int k=0; k<num_level_component; k++){
-        if(use_lossless[k]){
-            unsigned char * dec_level_component = NULL;
-            size_t compressed_length = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, level_components[k], level_sizes[k], &dec_level_component);
-            level_components_decompressed.push_back(dec_level_component);
-            level_components_const.push_back(dec_level_component);
-        }
-        else{
-            level_components_const.push_back(level_components[k]);
-        }
-    }
-    T * level_data = byte_wise_direct_decoding<T>(level_components_const, n, level_exp, num_level_component);
-    for(int k=0; k<level_components_decompressed.size(); k++){
-        free(level_components_decompressed[k]);
-    }
-    return level_data;
+    return byte_wise_direct_decoding<T>(level_components, n, level_exp, num_level_component);
 }
 
-// encode the intra level components progressively, postpone sign recording to the first non-zero bit
-/*
-@params data: coefficient data
-@params n: number of coefficients in current level
-@params level_exp: exponent of max level element
-@params num_level_component: number of encoded bitplanes
-@params encoded_sizes: size of encoded data
-*/
 template <class T>
-vector<unsigned char*> progressive_encoding_with_sign_postpone(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
+vector<unsigned char*> progressive_encoding_with_sign_postpone(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
     cout << "Using direct encoding with sign postpone" << endl;
@@ -135,34 +96,21 @@ vector<unsigned char*> progressive_encoding_with_sign_postpone(T const * data, s
     }
     // skip sign bitplane
     encoded_sizes.push_back(0);
-    use_lossless.push_back(false);
-    // add lossless compression
-    bool lossless = true;
     for(int k=1; k<num_level_component; k++){
         encoders[k-1]->flush();
-        if(lossless){
-            unsigned char * lossless_compressed = encoders[k-1]->save(true);
-            free(intra_level_components[k]);
-            intra_level_components[k] = lossless_compressed;
-            use_lossless.push_back(lossless);
-            encoded_sizes.push_back(encoders[k-1]->size());
-        }
-        else{
-            use_lossless.push_back(lossless);
-            encoded_sizes.push_back(encoders[k-1]->size());
-        }
+        encoded_sizes.push_back(encoders[k-1]->size());
         delete encoders[k-1];
     }
     return intra_level_components;
 }
 template <class T>
-T * progressive_decoding_with_sign_postpone(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component){
+T * progressive_decoding_with_sign_postpone(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     vector<BitDecoder*> decoders;
     for(int i=1; i<num_level_component; i++){
-        decoders.push_back(new BitDecoder(use_lossless[i], level_sizes[i]));
+        decoders.push_back(new BitDecoder());
         decoders.back()->load(level_components[i]);
     }
     T * data_pos = level_data;
@@ -200,9 +148,8 @@ T * progressive_decoding_with_sign_postpone(const vector<const unsigned char*>& 
 @params encoded_sizes: size of encoded data
 */
 template <class T>
-vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& use_lossless){
+vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes){
     vector<unsigned char*> intra_level_components;
-    cout << "Using run-length encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     struct timespec start, end;
@@ -226,13 +173,11 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
     err = clock_gettime(CLOCK_REALTIME, &end);
     cout << "RLE encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     size_t count = 0;
-    bool lossless = true;
     for(int i=0; i<num_level_component; i++){
         encoders[i].flush();
-        // err = clock_gettime(CLOCK_REALTIME, &start);        
-        intra_level_components.push_back(encoders[i].save(lossless));
-        // err = clock_gettime(CLOCK_REALTIME, &end);
-        use_lossless.push_back(lossless);
+        err = clock_gettime(CLOCK_REALTIME, &start);        
+        intra_level_components.push_back(encoders[i].save());
+        err = clock_gettime(CLOCK_REALTIME, &end);
         encoded_sizes.push_back(encoders[i].size());
         count += encoders[i].size();
         // cout << "The " << i << "-th bitplanes encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << " s, ratio = " << (n / 8) * 1.0 /encoders[i].size()<< " , progressive ratio = " << ((i+1) * (n / 8)) * 1.0 / count << endl;
@@ -241,13 +186,13 @@ vector<unsigned char*> progressive_encoding_with_rle_compression(T const * data,
 }
 
 template <class T>
-T * progressive_decoding_with_rle_compression(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component){
+T * progressive_decoding_with_rle_compression(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
     vector<RunlengthDecoder> decoders;
     for(int i=0; i<num_level_component; i++){
-        decoders.push_back(RunlengthDecoder(use_lossless[i], level_sizes[i]));
+        decoders.push_back(RunlengthDecoder());
         decoders[i].load(level_components[i]);
     }
     T * data_pos = level_data;
@@ -277,12 +222,12 @@ T * progressive_decoding_with_rle_compression(const vector<const unsigned char*>
 @params bitplane_indicator: indicator for encoder selection
 */
 template <class T>
-vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator, vector<unsigned char>& use_lossless){
+vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
-    cout << "Using hybrid encoding" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
@@ -292,10 +237,12 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
         bitplane_indicator.push_back(0);
     }    
     size_t buffer_index = byte_wise_direct_encoding_unrolled(data, n, level_exp, num_level_component, byte_encoders);
+    for(int k=0; k<num_level_component; k++){
+        encoded_sizes.push_back(buffer_index);
+    }
     struct timespec start, end;
     bool use_rle = true;
-    bool lossless = true;
-    for(int k=0; k<num_level_component; k++){
+    for(int k=1; k<num_level_component; k++){
         if((k >= HYBRID_ENCODING_SUF_RLE) || use_rle){
             // int err = clock_gettime(CLOCK_REALTIME, &start);        
             RunlengthEncoder rle;
@@ -309,48 +256,33 @@ vector<unsigned char*> progressive_hybrid_encoding(T const * data, size_t n, int
             rle.flush();
             free(intra_level_components[k]);
             // change content of level components, encoded size and indicator
-            intra_level_components[k] = rle.save(lossless);
-            use_lossless.push_back(lossless);
-            encoded_sizes.push_back(rle.size());
+            intra_level_components[k] = rle.save();
+            encoded_sizes[k] = rle.size();
             bitplane_indicator[k] = 1;
-            if(k && (rle.size() * 1.1 > level_component_size)) use_rle = false;
+            if(rle.size() * 1.5 > level_component_size) use_rle = false;
             // cout << "RLE index = " << k << endl;  
             // err = clock_gettime(CLOCK_REALTIME, &end);
             // cout << "bitplane " << k << " runlength encoding time = " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
             // cout << "s, encoded size = " << rle.size() << endl;
-        }
-        else{
-            if(lossless){
-                unsigned char * lossless_compressed = NULL;
-                size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, intra_level_components[k], buffer_index, &lossless_compressed);
-                free(intra_level_components[k]);
-                intra_level_components[k] = lossless_compressed;
-                use_lossless.push_back(lossless);
-                encoded_sizes.push_back(lossless_length);
-            }
-            else{
-                use_lossless.push_back(lossless);
-                encoded_sizes.push_back(buffer_index);
-            }            
         }
     }
     return intra_level_components;
 }
 
 template <class T>
-T * progressive_hybrid_decoding(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
+T * progressive_hybrid_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
-    return direct_hybrid_decoding<T>(level_components, level_sizes, use_lossless, n, level_exp, num_level_component, bitplane_indicator);
+    return byte_wise_hybrid_decoding<T>(level_components, n, level_exp, num_level_component, bitplane_indicator);
 }
 
 template <class T>
-vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator, vector<unsigned char>& use_lossless){
+vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size_t n, int level_exp, int num_level_component, vector<size_t>& encoded_sizes, vector<unsigned char>& bitplane_indicator){
     vector<unsigned char*> intra_level_components;
     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
-    cout << "Using hybrid encoding with sign postpone" << endl;
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
+    cout << "level_component_size = " << level_component_size << endl;
     vector<unsigned char *> byte_encoders;
     for(int i=0; i<num_level_component; i++){
         unsigned char * buffer = (unsigned char *) malloc(level_component_size);
@@ -403,29 +335,13 @@ vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size
     intra_level_components[0] = NULL;
     encoded_sizes[0] = 0;
     bitplane_indicator[0] = 1;
-    use_lossless.push_back(false);
-    bool lossless = true;
     for(int k=1; k<EMBEDDED_ENCODING_PRE_RLE; k++){
         free(intra_level_components[k]);
         pre_encoders[k - 1]->flush();
-        intra_level_components[k] = pre_encoders[k - 1]->save(lossless);
+        intra_level_components[k] = pre_encoders[k - 1]->save();
         encoded_sizes[k] = pre_encoders[k - 1]->size();
         bitplane_indicator[k] = 1;
-        use_lossless.push_back(lossless);
         delete pre_encoders[k - 1];
-    }
-    for(int k=EMBEDDED_ENCODING_PRE_RLE; k<EMBEDDED_ENCODING_SUF_RLE; k++){
-        if(lossless){
-            unsigned char * lossless_compressed = NULL;
-            size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, intra_level_components[k], buffer_index, &lossless_compressed);
-            free(intra_level_components[k]);
-            intra_level_components[k] = lossless_compressed;
-            encoded_sizes[k] = lossless_length;
-            use_lossless.push_back(lossless);
-        }
-        else{
-            use_lossless.push_back(lossless);
-        }
     }
     for(int k=EMBEDDED_ENCODING_SUF_RLE; k<num_level_component; k++){
         RunlengthEncoder rle;
@@ -439,16 +355,15 @@ vector<unsigned char*> progressive_hybrid_embedded_encoding(T const * data, size
         rle.flush();
         free(intra_level_components[k]);
         // change content of level components, encoded size and indicator
-        intra_level_components[k] = rle.save(lossless);
+        intra_level_components[k] = rle.save();
         encoded_sizes[k] = rle.size();
         bitplane_indicator[k] = 1;
-        use_lossless.push_back(lossless);
     }
     return intra_level_components;
 }
 
 template <class T>
-T * progressive_hybrid_embedded_decoding(const vector<const unsigned char*>& level_components, const vector<size_t>& level_sizes, const vector<unsigned char>& use_lossless, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
+T * progressive_hybrid_embedded_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
     T * level_data = (T *) malloc(n * sizeof(T));
     cout << "level element = " << n << endl;
     cout << "num_level_component = " << num_level_component << endl;
@@ -456,15 +371,15 @@ T * progressive_hybrid_embedded_decoding(const vector<const unsigned char*>& lev
     const int rle_switch_index_1 = (EMBEDDED_ENCODING_PRE_RLE > num_level_component) ? num_level_component : EMBEDDED_ENCODING_PRE_RLE;
     const int rle_switch_index_2 = (EMBEDDED_ENCODING_SUF_RLE > num_level_component) ? num_level_component : EMBEDDED_ENCODING_SUF_RLE;
     for(int i=1; i<rle_switch_index_1; i++){
-        decoders.push_back(new RunlengthDecoder(use_lossless[i], level_sizes[i]));
+        decoders.push_back(new RunlengthDecoder());
         decoders.back()->load(level_components[i]);
     }
     for(int i=rle_switch_index_1; i<rle_switch_index_2; i++){
-        decoders.push_back(new BitDecoder(use_lossless[i], level_sizes[i]));
+        decoders.push_back(new BitDecoder());
         decoders.back()->load(level_components[i]);        
     }
     for(int i=rle_switch_index_2; i<num_level_component; i++){
-        decoders.push_back(new RunlengthDecoder(use_lossless[i], level_sizes[i]));
+        decoders.push_back(new RunlengthDecoder());
         decoders.back()->load(level_components[i]);
     }
     T * data_pos = level_data;

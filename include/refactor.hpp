@@ -25,6 +25,7 @@ using namespace MGARD;
 // size of segment: default 4 MB
 const int seg_size = 4;
 
+#define LOSSLESS_THRESHOLD 200
 // data reorganization options
 #define IN_ORDER 0
 #define ROUND_ROBIN 1
@@ -366,6 +367,7 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             metadata.component_sizes[i].push_back(level_elements[i] * sizeof(T));
         }
         else{
+            vector<size_t>& intra_level_sizes = metadata.component_sizes[i];
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
@@ -390,27 +392,40 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
             int err = clock_gettime(CLOCK_REALTIME, &start);
             // intra-level progressive encoding
             if(metadata.option == ENCODING_DEFAULT){
-                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
+                auto intra_level_components = progressive_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_DEFAULT_SIGN_POSTPONE){
-                auto intra_level_components = progressive_encoding_with_sign_postpone(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
+                auto intra_level_components = progressive_encoding_with_sign_postpone(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_RLE){
-                auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], metadata.lossless_indicators[i]);
+                auto intra_level_components = progressive_encoding_with_rle_compression(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i]);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_HYBRID){
                 vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
-                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor, metadata.lossless_indicators[i]);
+                auto intra_level_components = progressive_hybrid_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
             }
             else if(metadata.option == ENCODING_HYBRID_SIGN_POSTPONE){                
                 vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
-                auto intra_level_components = progressive_hybrid_embedded_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor, metadata.lossless_indicators[i]);
+                auto intra_level_components = progressive_hybrid_embedded_encoding(reinterpret_cast<T*>(buffer), level_elements[i], level_exp, metadata.encoded_bitplanes, metadata.component_sizes[i], bitplane_indictor);
                 level_components.push_back(intra_level_components);
             }
+            // lossless compression
+            vector<unsigned char*>& intra_level_components = level_components[i];
+            for(int k=0; k<intra_level_components.size(); k++){
+                if(intra_level_sizes[k] > LOSSLESS_THRESHOLD){
+                    unsigned char * lossless_compressed = NULL;
+                    size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, intra_level_components[k], intra_level_sizes[k], &lossless_compressed);
+                    free(intra_level_components[k]);
+                    intra_level_components[k] = lossless_compressed;
+                    metadata.lossless_indicators[i].push_back(true);
+                    intra_level_sizes[k] = lossless_length;                    
+                }
+            }
+            cout << endl;
             err = clock_gettime(CLOCK_REALTIME, &end);
             cout << "Encoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
             // release extracted component
@@ -460,28 +475,46 @@ T * level_centric_data_reposition(const vector<vector<const unsigned char*>>& le
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
             T * buffer = NULL;
-            int encoded_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
-            if(encoded_bitplanes > metadata.encoded_bitplanes) encoded_bitplanes = metadata.encoded_bitplanes;            
+            int retrieved_bitplanes = intra_recompose_level[i] ? intra_recompose_level[i] : metadata.encoded_bitplanes;
+            if(retrieved_bitplanes > metadata.encoded_bitplanes) retrieved_bitplanes = metadata.encoded_bitplanes;            
             // intra-level progressive decoding
             struct timespec start, end;
             int err = clock_gettime(CLOCK_REALTIME, &start);
+            const vector<size_t>& level_sizes = metadata.component_sizes[i];
+            vector<const unsigned char *> intra_level_components(retrieved_bitplanes);
+            vector<unsigned char *> lossless_decompressed_components;
+            // lossless decompression
+            for(int k=0; k<retrieved_bitplanes; k++){
+                if(metadata.lossless_indicators[i][k]){
+                    unsigned char * lossless_decompressed = NULL;
+                    size_t compressed_length = MGARD::sz_lossless_decompress(ZSTD_COMPRESSOR, level_components[i][k], level_sizes[k], &lossless_decompressed);
+                    intra_level_components[k] = lossless_decompressed;
+                    lossless_decompressed_components.push_back(lossless_decompressed);
+                }
+                else{
+                    intra_level_components[k] = level_components[i][k];
+                }
+            }
             if(metadata.option == ENCODING_DEFAULT){
                 // add size of lossless decoding
-                buffer = progressive_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
+                buffer = progressive_decoding<T>(intra_level_components, level_elements[i], level_exp, retrieved_bitplanes);
             }
             else if(metadata.option == ENCODING_DEFAULT_SIGN_POSTPONE){
-                buffer = progressive_decoding_with_sign_postpone<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
+                buffer = progressive_decoding_with_sign_postpone<T>(intra_level_components, level_elements[i], level_exp, retrieved_bitplanes);
             }
             else if(metadata.option == ENCODING_RLE){
-                buffer = progressive_decoding_with_rle_compression<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes);
+                buffer = progressive_decoding_with_rle_compression<T>(intra_level_components, level_elements[i], level_exp, retrieved_bitplanes);
             }
             else if(metadata.option == ENCODING_HYBRID){
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
-                buffer = progressive_hybrid_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
+                buffer = progressive_hybrid_decoding<T>(intra_level_components, level_elements[i], level_exp, retrieved_bitplanes, bitplane_indictor);
             }
             else if(metadata.option == ENCODING_HYBRID_SIGN_POSTPONE){
                 const vector<unsigned char>& bitplane_indictor = metadata.bitplane_indictors[i];
-                buffer = progressive_hybrid_embedded_decoding<T>(level_components[i], metadata.component_sizes[i], metadata.lossless_indicators[i], level_elements[i], level_exp, encoded_bitplanes, bitplane_indictor);
+                buffer = progressive_hybrid_embedded_decoding<T>(intra_level_components, level_elements[i], level_exp, retrieved_bitplanes, bitplane_indictor);
+            }
+            for(int k=0; k<lossless_decompressed_components.size(); k++){
+                free(lossless_decompressed_components[k]);
             }
             err = clock_gettime(CLOCK_REALTIME, &end);
             cout << "Byteplane decoding time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
