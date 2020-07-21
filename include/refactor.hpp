@@ -368,6 +368,8 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
         }
         else{
             vector<size_t>& intra_level_sizes = metadata.component_sizes[i];
+            vector<unsigned char>& level_lossless_indicators = metadata.lossless_indicators[i];
+            level_lossless_indicators = vector<unsigned char>(metadata.encoded_bitplanes, false);
             // identify exponent of max element
             int level_exp = 0;
             frexp(level_error_bounds[i], &level_exp);
@@ -421,8 +423,8 @@ vector<vector<unsigned char*>> level_centric_data_refactor(const T * data, int t
                     size_t lossless_length = MGARD::sz_lossless_compress(ZSTD_COMPRESSOR, 3, intra_level_components[k], intra_level_sizes[k], &lossless_compressed);
                     free(intra_level_components[k]);
                     intra_level_components[k] = lossless_compressed;
-                    metadata.lossless_indicators[i].push_back(true);
-                    intra_level_sizes[k] = lossless_length;                    
+                    level_lossless_indicators[k] = true;
+                    intra_level_sizes[k] = lossless_length;
                 }
             }
             cout << endl;
