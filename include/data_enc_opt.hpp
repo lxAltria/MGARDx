@@ -96,7 +96,7 @@ public:
     void encode(bool bit){
         if(lastbit == bit){
             count ++;
-            if(count == 256){
+            if(count == RLE_CUTOFF_COUNT){
                 length.push_back(count);
                 count = 0;
                 lastbit = !bit;
@@ -120,12 +120,12 @@ public:
     }
     unsigned char * save(){
         // Huffman
-        unsigned char * encoded = (unsigned char *) malloc(length.size() * sizeof(int));
+        unsigned char * encoded = (unsigned char *) malloc(RLE_CUTOFF_COUNT * 2 * sizeof(unsigned char) + length.size() * sizeof(int));
         auto encoded_pos = encoded;
         *reinterpret_cast<size_t*>(encoded_pos) = length.size();
         encoded_pos += sizeof(size_t);
         auto encoder = SZ::HuffmanEncoder<int>();
-        encoder.preprocess_encode(length, 2*256);
+        encoder.preprocess_encode(length, 2*RLE_CUTOFF_COUNT);
         encoder.save(encoded_pos);
         encoder.encode(length, encoded_pos);
         encoder.postprocess_encode();

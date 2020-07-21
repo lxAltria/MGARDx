@@ -19,7 +19,7 @@ using namespace std;
 #define PSNR 3
 
 #define MAX_2(a, b) (a > b) ? (a) : (b)
-#define LOOKUP_STEPS 2
+#define LOOKUP_STEPS 1
 // compute maximum value in level
 /*
 @params data: level data
@@ -364,7 +364,7 @@ unsigned char * refactored_data_reorganization_greedy_shuffling(int N, int mode,
         cerr << "Mode " << mode << " not supported in refactored_data_reorganization_shuffled." << endl;
         exit(0);
     }
-    efficiency = amortize_error(efficiency, LOOKUP_STEPS);
+    // efficiency = amortize_error(efficiency, LOOKUP_STEPS);
     unsigned char * reorganized_data = (unsigned char *) malloc(total_size);
     unsigned char * reorganized_data_pos = reorganized_data;
     vector<size_t> index(num_levels, 0);
