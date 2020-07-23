@@ -9,10 +9,10 @@ namespace REFACTOR{
 using namespace std;
 
 // Runlength encoder cutoff size
-#define RLE_CUTOFF_COUNT 256
+#define RLE_CUTOFF_COUNT 512
 // index for switching to rle
 #define HYBRID_ENCODING_SUF_RLE 25
-#define EMBEDDED_ENCODING_PRE_RLE 8
+#define EMBEDDED_ENCODING_PRE_RLE 12
 #define EMBEDDED_ENCODING_SUF_RLE 25
 
 class EncoderInterface{

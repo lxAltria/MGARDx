@@ -281,7 +281,7 @@ template <class T>
 void interleave_level_coefficients(const T * data, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * buffer){
     switch(dims.size()){
         case 3:
-            interleave_level_coefficients_3d(data, dims, dims_fine, dims_coasre, buffer);
+            interleave_level_coefficients_3d_space_filling_curve(data, dims, dims_fine, dims_coasre, buffer);
             break;
         default:
             cerr << "Other dimensions are not supported" << endl;
@@ -300,7 +300,7 @@ template <class T>
 void reposition_level_coefficients(const T * buffer, const vector<size_t>& dims, const vector<size_t>& dims_fine, const vector<size_t>& dims_coasre, T * data){
     switch(dims.size()){
         case 3:
-            reposition_level_coefficients_3d(buffer, dims, dims_fine, dims_coasre, data);
+            reposition_level_coefficients_3d_space_filling_curve(buffer, dims, dims_fine, dims_coasre, data);
             break;
         default:
             cerr << "Other dimensions are not supported" << endl;

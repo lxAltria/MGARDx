@@ -92,6 +92,7 @@ vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes,
     vector<double> mse = vector<double>(num_bitplanes, 0);
     FloatingInt32 fi;
     for(int i=0; i<n; i++){
+        if(data[i] == 0) continue;
         int data_exp = 0;
         frexp(data[i], &data_exp);
         auto val = data[i];
@@ -109,15 +110,17 @@ vector<double> record_level_mse(const float * data, size_t n, int num_bitplanes,
             index += exp_diff;
             exp_diff = 0;
         }
-        for(int b=exp_diff; b<prec; b++){
-            // change b-th bit to 0
-            fi.i &= ~(1u << b);
-            mse[index] += (data[i] - fi.f)*(data[i] - fi.f);
-            index --;
-        }
-        while(index >= 0){
-            mse[index] += data[i] * data[i];
-            index --;
+        if(index > 0){
+            for(int b=exp_diff; b<prec; b++){
+                // change b-th bit to 0
+                fi.i &= ~(1u << b);
+                mse[index] += (data[i] - fi.f)*(data[i] - fi.f);
+                index --;
+            }
+            while(index >= 0){
+                mse[index] += data[i] * data[i];
+                index --;
+            }
         }
     }
     return mse;
