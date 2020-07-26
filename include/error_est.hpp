@@ -410,7 +410,7 @@ unsigned char * refactored_data_reorganization_greedy_shuffling(int N, int mode,
 
 inline double estimate_error(double error, int level, int N, int mode){
     if(mode == MAX_ERROR){
-        return error * 1.65;
+        return error * 2.23; // for 3d (1 + 3sqrt(3)/4)
     }
     else if(mode == SQUARED_ERROR){
         return error * (1 << (level * N));
