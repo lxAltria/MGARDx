@@ -95,16 +95,30 @@ private:
 	T * correction_buffer = NULL;
     vector<size_t> current_dims;
 
+    int quantize_level(T * data, const vector<size_t>& dims, const vector<size_t>& coarse_dims, const vector<size_t>& fine_dims, double level_eb, int quant_radius, vector<int>& quant_inds, int offset, unsigned char *& compressed_data_pos){
+        auto quantizer = SZ::LinearQuantizer<T>(level_eb, quant_radius);
+        int start_offset = offset;
+        for(int i=0; i<fine_dims[0]; i++){
+            for(int j=0; j<fine_dims[1]; j++){
+                for(int k=0; k<fine_dims[2]; k++){
+                    if((i < coarse_dims[0]) && (j < coarse_dims[1]) && (k < coarse_dims[2])){
+                        continue;
+                    }
+                    auto tmp = data[i * dims[1] * dims[2] + j * dims[2] + k];
+                    quant_inds[offset ++] = quantizer.quantize_and_overwrite(tmp, 0);
+                }
+            }
+        }
+        // record quantizer
+        quantizer.save(compressed_data_pos);
+        return offset - start_offset;
+    }
+
 	unsigned char * quantize_and_encoding(const vector<size_t>& dims, size_t num_elements, int n_dims, double eb, int target_level, size_t& compressed_size){
-		double C2 = 1 + pow(sqrt(3)/2, n_dims);
-		double t = eb / (C2 * (target_level + 1));
-		auto quantizer = SZ::LinearQuantizer<T>(t);
         size_t num_nodal_elements = 1;
         for(const auto& d: current_dims){
             num_nodal_elements *= d;
         }
-        vector<int> quant_inds(num_elements - num_nodal_elements);
-
         unsigned char * compressed = (unsigned char *) malloc(num_elements * sizeof(T));
         unsigned char * compressed_data_pos = compressed;
         // record target level
@@ -112,25 +126,47 @@ private:
         compressed_data_pos += sizeof(size_t);
         *reinterpret_cast<unsigned char*>(compressed_data_pos) = use_sz;
         compressed_data_pos += sizeof(unsigned char);
+        // leave blank for quantizer size
+        unsigned char * quantizer_length = compressed_data_pos;
+        compressed_data_pos += sizeof(size_t);
+        // quantize level elements
+        const int quant_radius = 32768;
+        double C2 = 1 + pow(sqrt(3)/2, n_dims);
+        // double level_eb = eb / (C2 * (target_level + 1));
+        double c = sqrt(8);
+        fstream file;
+        file.open("config");
+        if(file){
+            file >> c;
+            file.close();
+        }
+        // geometric
+        double cc = (1 - c) / (1 - pow(c, target_level + 1));
+        double level_eb = cc * eb / C2;
+        // arithmetic
+        // double cc = 2.0 / (2 + target_level*c) / (target_level + 1);
+        // double level_eb = cc * eb / C2;
+        // double difference = level_eb * c;
+        vector<vector<size_t>> level_dims = init_levels(dims, target_level);
+        vector<int> quant_inds(num_elements - num_nodal_elements);
+        int quant_count = 0;
         if(use_sz){
-            // 3d
-            size_t count = 0;
-            for(int i=0; i<dims[0]; i++){
-                for(int j=0; j<dims[1]; j++){
-                    for(int k=0; k<dims[2]; k++){
-                        auto tmp = data[i * dims[1] * dims[2] + j * dims[2] + k];
-                        if((i < current_dims[0]) && (j < current_dims[1]) && (k < current_dims[2])){
-                            data_buffer[i * current_dims[1] * current_dims[2] + j * current_dims[2] + k] = tmp;
-                        }
-                        else{
-                            quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
-                        }
-                    }
+            T * data_buffer_pos = data_buffer;
+            const T * data_pos = data;
+            for(int i=0; i<current_dims[0]; i++){
+                const T * row_data_pos = data_pos;
+                T * row_data_buffer_pos = data_buffer_pos;
+                for(int j=0; j<current_dims[1]; j++){
+                    memcpy(row_data_buffer_pos, row_data_pos, current_dims[2] * sizeof(T));
+                    row_data_pos += dims[2];
+                    row_data_buffer_pos += current_dims[2];
                 }
+                data_pos += dims[1] * dims[2];
+                data_buffer_pos += current_dims[1] * current_dims[2];
             }
             // sz compressing
             size_t sz_compressed_size = 0;
-            auto sz_compressed = sz_compress_3d(data_buffer, current_dims[0], current_dims[1], current_dims[2], t, sz_compressed_size, 6);
+            auto sz_compressed = sz_compress_3d(data_buffer, current_dims[0], current_dims[1], current_dims[2], level_eb, sz_compressed_size, 6);
             // record sz compressed data
             *reinterpret_cast<size_t*>(compressed_data_pos) = sz_compressed_size;
             compressed_data_pos += sizeof(size_t);
@@ -139,18 +175,23 @@ private:
             free(sz_compressed);
         }
         else{
+            // resize quantization number
             quant_inds.resize(num_elements);
-            size_t count = 0;
-            for(int i=0; i<num_elements; i++){
-             auto tmp = data[i];
-             quant_inds[count ++] = quantizer.quantize_and_overwrite(tmp, 0);
-            }
+            vector<size_t> dummy_dims(dims.size(), 0);
+            quant_count += quantize_level(data, dims, dummy_dims, level_dims[0], level_eb, quant_radius, quant_inds, quant_count, compressed_data_pos);
         }
-        // record quantizer
-		quantizer.save(compressed_data_pos);
+        for(int l=1; l<=target_level; l++){
+            // geometric
+            level_eb *= c;
+            // arithmetic
+            // level_eb += difference;
+            quant_count += quantize_level(data, dims, level_dims[l-1], level_dims[l], level_eb, quant_radius, quant_inds, quant_count, compressed_data_pos);
+        }
+        // record length for all quantizers
+        *reinterpret_cast<size_t*>(quantizer_length) = compressed_data_pos - quantizer_length - sizeof(size_t);
         // encode
 		auto encoder = SZ::HuffmanEncoder<int>();
-		encoder.preprocess_encode(quant_inds, 4*quantizer.get_radius());
+		encoder.preprocess_encode(quant_inds, 4*quant_radius);
 		encoder.save(compressed_data_pos);
 		encoder.encode(quant_inds, compressed_data_pos);
 		encoder.postprocess_encode();
