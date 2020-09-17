@@ -70,39 +70,10 @@ vector<unsigned char*> progressive_encoding_with_sign_postpone(T const * data, s
         unsigned char * buffer = (unsigned char *) malloc(2 * level_component_size);
         intra_level_components.push_back(buffer);
     }
-    vector<BitEncoder *> encoders;
-    // skip sign bit-plane because it is postponed
-    for(int i=1; i<num_level_component; i++){
-        encoders.push_back(new BitEncoder(intra_level_components[i]));
-    }
-    for(int i=0; i<n; i++){
-        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
-        long int fix_point = (long int) cur_data;
-        bool sign = data[i] < 0;
-        unsigned int fp = sign ? -fix_point : +fix_point;
-        // flag for whether it is the first non-zero value bit
-        bool first_bit = true;
-        int bits = num_level_component - 2;
-        for(int k=1; k<num_level_component; k++){
-            bool current_bit = (fp >> bits) & 1;
-            encoders[k-1]->encode(current_bit);
-            if(first_bit && current_bit){
-                // record sign
-                encoders[k-1]->encode(sign);
-                first_bit = false;
-            }
-            bits --;
-        }
-    }
-    // skip sign bitplane
-    encoded_sizes.push_back(0);
-    for(int k=1; k<num_level_component; k++){
-        encoders[k-1]->flush();
-        encoded_sizes.push_back(encoders[k-1]->size());
-        delete encoders[k-1];
-    }
-    return intra_level_components;
+    byte_wise_direct_encoding_with_sign_postpone(data, n, level_exp, num_level_component, intra_level_components, encoded_sizes);
+    return intra_level_components;    
 }
+
 template <class T>
 T * progressive_decoding_with_sign_postpone(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component){
     T * level_data = (T *) malloc(n * sizeof(T));

@@ -25,8 +25,8 @@ void test(string ori_filename, string compressed_filename, const vector<size_t>&
     size_t num_elements = 0;
     size_t compressed_size = 0;
     auto compressed = MGARD::readfile<unsigned char>(compressed_filename.c_str(), compressed_size);
-    auto data_ori = MGARD::readfile<float>(ori_filename.c_str(), num_elements);
-    auto data_dec = test_decompress<float>(compressed.data(), compressed_size, dims);
+    auto data_ori = MGARD::readfile<T>(ori_filename.c_str(), num_elements);
+    auto data_dec = test_decompress<T>(compressed.data(), compressed_size, dims);
     MGARD::print_statistics(data_ori.data(), data_dec, num_elements, compressed_size);
     MGARD::writefile((compressed_filename + ".out").c_str(), data_dec, num_elements);
     free(data_dec);    

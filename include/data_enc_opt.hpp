@@ -49,7 +49,6 @@ public:
         while (position != 0) encode(false);
     }
     size_t size(){
-        if(lossless) return lossless_size;
         return (position == 0) ? current - start : current - start + 1;
     }
     unsigned char * save(){
@@ -60,8 +59,6 @@ private:
     unsigned char position = 0;
     unsigned char * const start = NULL;
     unsigned char * current = NULL;
-    bool lossless = false;
-    size_t lossless_size = 0;
 };
 
 // A class to read data bit by bit
@@ -423,6 +420,186 @@ T * byte_wise_direct_decoding(const vector<const unsigned char*>& level_componen
     }
     return level_data;
 }
+
+template <class T>
+void byte_wise_direct_encoding_with_sign_postpone(const T * data, int n, int level_exp, int num_level_component, vector<unsigned char *>& intra_level_components, vector<size_t>& encoded_sizes){
+    vector<BitEncoder *> encoders;
+    // skip sign bit-plane because it is postponed
+    for(int i=1; i<num_level_component; i++){
+        encoders.push_back(new BitEncoder(intra_level_components[i]));
+    }
+    for(int i=0; i<n; i++){
+        T cur_data = ldexp(data[i], num_level_component - 1 - level_exp);
+        long int fix_point = (long int) cur_data;
+        bool sign = data[i] < 0;
+        unsigned int fp = sign ? -fix_point : +fix_point;
+        // flag for whether it is the first non-zero value bit
+        bool first_bit = true;
+        int bits = num_level_component - 2;
+        for(int k=1; k<num_level_component; k++){
+            bool current_bit = (fp >> bits) & 1;
+            encoders[k-1]->encode(current_bit);
+            if(first_bit && current_bit){
+                // record sign
+                encoders[k-1]->encode(sign);
+                first_bit = false;
+            }
+            bits --;
+        }
+    }
+    // skip sign bitplane
+    encoded_sizes.push_back(0);
+    for(int k=1; k<num_level_component; k++){
+        encoders[k-1]->flush();
+        encoded_sizes.push_back(encoders[k-1]->size());
+        delete encoders[k-1];
+    }
+}
+
+template <class T>
+void byte_wise_direct_encoding_unrolled_with_sign_postpone(const T * data, int n, int level_exp, int num_level_component, vector<unsigned char *>& intra_level_components, vector<size_t>& encoded_sizes){
+    // size_t data_index = 0;
+    // vector<unsigned int> buffer(num_level_component, 0);
+    // vector<int> positions(num_level_component, 0);
+    // for(int i=0; i<n/8; i++){
+    //     T cur_data;
+    //     long int fix_point;
+    //     bool sign0, sign1, sign2, sign3, sign4, sign5, sign6, sign7;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign0 = cur_data < 0;
+    //     unsigned int fp0 = sign0 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign1 = cur_data < 0;
+    //     unsigned int fp1 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign2 = cur_data < 0;
+    //     unsigned int fp2 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign3 = cur_data < 0;
+    //     unsigned int fp3 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign4 = cur_data < 0;
+    //     unsigned int fp4 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign5 = cur_data < 0;
+    //     unsigned int fp5 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign6 = cur_data < 0;
+    //     unsigned int fp6 = sign1 ? -fix_point : +fix_point;
+    //     cur_data = ldexp(data[data_index ++], num_level_component - 1 - level_exp);
+    //     fix_point = (long int) cur_data;
+    //     sign7 = cur_data < 0;
+    //     unsigned int fp7 = sign1 ? -fix_point : +fix_point;
+    //     for(int k=num_level_component - 2; k>=0; k--){
+    //         for(int s=0; s<7; s++){
+    //             byte_encoders[num_level_component - 1 - k][buffer_index]
+    //         }
+    //         byte_encoders[num_level_component - 1 - k][buffer_index] 
+    //             =   ((fp0 >> k) & 1) + (((fp1 >> k) & 1) << 1) 
+    //                 + (((fp2 >> k) & 1) << 2) + (((fp3 >> k) & 1) << 3)
+    //                 + (((fp4 >> k) & 1) << 4) + (((fp5 >> k) & 1) << 5)
+    //                 + (((fp6 >> k) & 1) << 6) + (((fp7 >> k) & 1) << 7);
+    //     }
+    // }
+//     {
+//         // leftover
+//         int rest = n % 8;
+//         unsigned char tmp[32] = {0};
+//         for(int j=0; j<rest; j++){
+//             T val = data[data_index ++];
+//             T cur_data = ldexp(val, num_level_component - 1 - level_exp);
+//             long int fix_point = (long int) cur_data;
+//             unsigned int sign = val < 0;
+//             unsigned int fp = sign ? -fix_point : +fix_point;
+//             tmp[0] += sign << j;
+//             for(int k=num_level_component - 2; k>=0; k--){
+//                 tmp[num_level_component - 1 - k] += ((fp >> k) & 1) << j;
+//             }
+//         }
+//         for(int k=0; k<num_level_component; k++){
+//             byte_encoders[k][buffer_index] = tmp[k];
+//         }
+//         buffer_index ++;
+//     }
+}
+
+// template <class T>
+// T * byte_wise_direct_decoding_with_sign_postpone(const vector<const unsigned char*>& level_components, int n, int level_exp, int num_level_component){
+//     T * level_data = (T *) malloc(n * sizeof(T));
+//     size_t level_component_size = (n * sizeof(T) - 1) / num_level_component + 1 + 8;
+//     cout << "level element = " << n << endl;
+//     cout << "num_level_component = " << num_level_component << endl;
+//     cout << "level_component_size = " << level_component_size << endl;
+//     size_t buffer_index = 0;
+//     T * data_pos = level_data;
+//     for(int i=0; i<n/8; i++){
+//         unsigned int fp0 = 0, fp1 = 0, fp2 = 0, fp3 = 0, fp4 = 0, fp5 = 0, fp6 = 0, fp7 = 0;
+//         for(int j=1; j<num_level_component; j++){
+//             unsigned char cur_byte = level_components[j][buffer_index];
+//             fp0 = (fp0 << 1) + (cur_byte & 1);
+//             fp1 = (fp1 << 1) + ((cur_byte >> 1) & 1);
+//             fp2 = (fp2 << 1) + ((cur_byte >> 2) & 1);
+//             fp3 = (fp3 << 1) + ((cur_byte >> 3) & 1);
+//             fp4 = (fp4 << 1) + ((cur_byte >> 4) & 1);
+//             fp5 = (fp5 << 1) + ((cur_byte >> 5) & 1);
+//             fp6 = (fp6 << 1) + ((cur_byte >> 6) & 1);
+//             fp7 = (fp7 << 1) + ((cur_byte >> 7) & 1);
+//         }
+//         unsigned char sign = level_components[0][buffer_index];
+//         signed int fix_point;
+//         fix_point = fp0;
+//         fix_point = (sign & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp1;
+//         fix_point = ((sign >> 1) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp2;
+//         fix_point = ((sign >> 2) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp3;
+//         fix_point = ((sign >> 3) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp4;
+//         fix_point = ((sign >> 4) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp5;
+//         fix_point = ((sign >> 5) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp6;
+//         fix_point = ((sign >> 6) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         fix_point = fp7;
+//         fix_point = ((sign >> 7) & 1) ? -fix_point : fix_point;
+//         *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         buffer_index ++;
+//     }
+//     {
+//         // leftover
+//         int rest = n % 8;
+//         unsigned int fp[8] = {0};
+//         for(int j=1; j<num_level_component; j++){
+//             unsigned char cur_byte = level_components[j][buffer_index];
+//             for(int r=0; r<rest; r++){
+//                 fp[r] = (fp[r] << 1) + ((cur_byte >> r) & 1);
+//             }
+//         }
+//         unsigned char sign = level_components[0][buffer_index];
+//         for(int r=0; r<rest; r++){
+//             signed int fix_point = fp[r];
+//             fix_point = ((sign >> r) & 1) ? -fix_point : fix_point;
+//             *(data_pos ++) = ldexp((float)fix_point, - num_level_component + 1 + level_exp);
+//         }
+//         buffer_index ++;
+//     }
+//     return level_data;
+// }
 
 template <class T>
 T * direct_hybrid_decoding(const vector<const unsigned char*>& level_components, size_t n, int level_exp, int num_level_component, const vector<unsigned char>& bitplane_indicator){
