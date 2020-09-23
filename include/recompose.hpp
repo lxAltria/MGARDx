@@ -140,50 +140,62 @@ private:
         target_level = *reinterpret_cast<const size_t*>(compressed_data_pos);
         compressed_data_pos += sizeof(size_t);
         level_dims = init_levels(dims, target_level);
-        bool use_sz = *reinterpret_cast<const unsigned char*>(compressed_data_pos);
-        compressed_data_pos += sizeof(unsigned char);
-        size_t quantizer_length = *reinterpret_cast<const size_t*>(compressed_data_pos);
-        compressed_data_pos += sizeof(size_t);
-        // skip quantizer contents
-        const unsigned char * quantizer_pos = compressed_data_pos;
-        compressed_data_pos += quantizer_length;
         size_t n1_nodal = level_dims[0][0];
         size_t n2_nodal = level_dims[0][1];
         size_t n3_nodal = level_dims[0][2];
-        T * sz_dec = NULL;
-        size_t quant_elements = num_elements;
-        if(use_sz){
-            // recover sz compressed
-            size_t sz_compressed_size = *reinterpret_cast<const size_t*>(quantizer_pos);
-            quantizer_pos += sizeof(size_t);
-            // cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
-            sz_dec = sz_decompress_3d<T>(quantizer_pos, n1_nodal, n2_nodal, n3_nodal);
-            quantizer_pos += sz_compressed_size;
-            quant_elements = num_elements - n1_nodal * n2_nodal * n3_nodal;
-        }
-        // recover mgard
-        auto encoder = SZ::HuffmanEncoder<int>();
-        size_t remaining_length = compressed_length;
-        encoder.load(compressed_data_pos, remaining_length);
-        auto quant_inds = encoder.decode(compressed_data_pos, quant_elements);
-        encoder.postprocess_decode();
-        int offset = 0;
-        if(use_sz){
-            for(int i=0; i<n1_nodal; i++){
-                for(int j=0; j<n2_nodal; j++){
-                    for(int k=0; k<n3_nodal; k++){
-                        data[i * dims[1] * dims[2] + j * dims[2] + k] = sz_dec[i * n2_nodal * n3_nodal + j * n3_nodal + k];
-                    }
-                }
-            }
+        if(target_level == 0){
+            // use sz directly
+            size_t sz_compressed_size = *reinterpret_cast<const size_t*>(compressed_data_pos);
+            compressed_data_pos += sizeof(size_t);
+            cout << "sz decompress position = " << compressed_data_pos - compressed << endl;
+            cout << "sz compressed size = " << sz_compressed_size << endl;
+            T * sz_dec = sz_decompress_3d<T>(compressed_data_pos, n1_nodal, n2_nodal, n3_nodal);
+            for(int i=0; i<n1_nodal * n2_nodal * n3_nodal; i++) data[i] = sz_dec[i];
             free(sz_dec);
         }
         else{
-            vector<size_t> dummy_dims(dims.size(), 0);
-            offset += recover_level(quantizer_pos, dims, dummy_dims, level_dims[0], quant_inds, offset, data);
-        }
-        for(int l=1; l<=target_level; l++){
-            offset += recover_level(quantizer_pos, dims, level_dims[l-1], level_dims[l], quant_inds, offset, data);
+            bool use_sz = *reinterpret_cast<const unsigned char*>(compressed_data_pos);
+            compressed_data_pos += sizeof(unsigned char);
+            size_t quantizer_length = *reinterpret_cast<const size_t*>(compressed_data_pos);
+            compressed_data_pos += sizeof(size_t);
+            // skip quantizer contents
+            const unsigned char * quantizer_pos = compressed_data_pos;
+            compressed_data_pos += quantizer_length;
+            T * sz_dec = NULL;
+            size_t quant_elements = num_elements;
+            if(use_sz){
+                // recover sz compressed
+                size_t sz_compressed_size = *reinterpret_cast<const size_t*>(quantizer_pos);
+                quantizer_pos += sizeof(size_t);
+                // cerr << "Recompose dims: " << n1_nodal << " " << n2_nodal << " " << n3_nodal << endl;
+                sz_dec = sz_decompress_3d<T>(quantizer_pos, n1_nodal, n2_nodal, n3_nodal);
+                quantizer_pos += sz_compressed_size;
+                quant_elements = num_elements - n1_nodal * n2_nodal * n3_nodal;
+            }
+            // recover mgard
+            auto encoder = SZ::HuffmanEncoder<int>();
+            size_t remaining_length = compressed_length;
+            encoder.load(compressed_data_pos, remaining_length);
+            auto quant_inds = encoder.decode(compressed_data_pos, quant_elements);
+            encoder.postprocess_decode();
+            int offset = 0;
+            if(use_sz){
+                for(int i=0; i<n1_nodal; i++){
+                    for(int j=0; j<n2_nodal; j++){
+                        for(int k=0; k<n3_nodal; k++){
+                            data[i * dims[1] * dims[2] + j * dims[2] + k] = sz_dec[i * n2_nodal * n3_nodal + j * n3_nodal + k];
+                        }
+                    }
+                }
+                free(sz_dec);
+            }
+            else{
+                vector<size_t> dummy_dims(dims.size(), 0);
+                offset += recover_level(quantizer_pos, dims, dummy_dims, level_dims[0], quant_inds, offset, data);
+            }
+            for(int l=1; l<=target_level; l++){
+                offset += recover_level(quantizer_pos, dims, level_dims[l-1], level_dims[l], quant_inds, offset, data);
+            }
         }
         free(compressed);
     }
