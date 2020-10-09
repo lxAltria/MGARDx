@@ -56,9 +56,9 @@ for op in ops:
     perfs[:, 2] = read_time_opt('./result/optimizations/scale_{}_time.txt'.format(op), 'SCALE')
     perfs[:, 3] = read_time_opt('./result/optimizations/qmc_{}_time.txt'.format(op), 'QMCPACK')
     rects1 = ax[i].bar(x - 1.5 * width, perfs[0], width, label='MGARD')
-    rects2 = ax[i].bar(x - 0.5 * width, perfs[1], width, label='OurMethod w/ opt. ABC')
-    rects3 = ax[i].bar(x + 0.5 * width, perfs[2], width, label='OurMethod w/ opt. ABCD')
-    rects3 = ax[i].bar(x + 1.5 * width, perfs[3], width, label='OurMethod w/ opt. ABCDE')
+    rects2 = ax[i].bar(x - 0.5 * width, perfs[1], width, label='DR + DLVC')
+    rects3 = ax[i].bar(x + 0.5 * width, perfs[2], width, label='DR + DLVC + BCC')
+    rects3 = ax[i].bar(x + 1.5 * width, perfs[3], width, label='DR + DLVC + BCC + IVER')
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[i].set_ylabel('Performance (MB/s)')
     ax[i].set_ylim(0, 350)

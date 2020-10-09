@@ -43,8 +43,9 @@ public:
 			num_elements *= d;
 		}
 		data_buffer_size = num_elements * sizeof(T);
-        int max_level = log2(*min_element(dims.begin(), dims.end()));
+        int max_level = log2(*min_element(dims.begin(), dims.end())) - 1;
         if(target_level > max_level) target_level = max_level;
+        cerr << "Decompose level = " << target_level << endl;
 		init(dims);
         current_dims.resize(dims.size());
 		if(dims.size() == 1){
@@ -76,12 +77,13 @@ public:
             double c = sqrt(8);
 			for(int i=0; i<target_level; i++){
                 double cc = (1 - c) / (1 - pow(c, i + 1));
-                double eb = cc * error_bound / C2;
-                if(switch_to_lorenzo(data, n1, n2, n3, dims[1] * dims[2], dims[2], eb)){
+                double level_eb = cc * error_bound / C2 ;
+                if(switch_to_lorenzo(data, n1, n2, n3, dims[1] * dims[2], dims[2], level_eb)){
                     cout << "switch to SZ (lorenzo) at level " << i << endl;
                     return i;
                 }
 				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+                // decompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				n3 = (n3 >> 1) + 1;
@@ -161,12 +163,12 @@ private:
             double C2 = 1 + 3*sqrt(3)/4;
             // double level_eb = eb / (C2 * (target_level + 1));
             double c = sqrt(8);
-            fstream file;
-            file.open("config");
-            if(file){
-                file >> c;
-                file.close();
-            }
+            // fstream file;
+            // file.open("config");
+            // if(file){
+            //     file >> c;
+            //     file.close();
+            // }
             // geometric
             double cc = (1 - c) / (1 - pow(c, target_level + 1));
             double level_eb = cc * eb / C2;
@@ -538,6 +540,11 @@ private:
             correction_pos += n2_nodal * n3_nodal;
         }
 	}
+    // decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2) with hierarchical basis (pure interpolation)
+    void decompose_level_3D_hierarchical_basis(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+        data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+        compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+    }
 };
 
 

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+matplotlib.rcParams['text.usetex'] = True
 import matplotlib.pyplot as plt
 
 SMALL_SIZE = 12
@@ -24,13 +25,13 @@ idx2 = [0, 2, 4]
 fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(9,6))
 
 
-p1, = ax1.plot(idx1, coeff, color = 'gray', marker = 'o', linestyle='-', linewidth=2, label='difference of interpolation')
-p2, = ax1.plot(idx2, phi, color = 'black', linestyle='--', label='coarse nodal basis function')
+p1, = ax1.plot(idx1, coeff, color = 'gray', marker = 'o', linestyle='-', linewidth=2, label=r'$(I-\Pi_{l-1})Q_{l}u$')
+p2, = ax1.plot(idx2, phi, color = 'black', linestyle='--', label='$\phi_{l}^{i}$')
 
 ax1.annotate('', xy=(1, 0), xytext=(1, coeff[1]), arrowprops=dict(arrowstyle="|-|", color='green', linewidth = 1))
 ax1.annotate('', xy=(3, 0), xytext=(3, coeff[3]), arrowprops=dict(arrowstyle="|-|", color='green', linewidth = 1))
-ax1.annotate('$c_{i-1}$', xy=(1, 0.5*(coeff[1])), xycoords='data', xytext=(5, 0), textcoords='offset points')
-ax1.annotate('$c_i$', xy=(3, 0.5*(coeff[3])), xycoords='data', xytext=(5, 0), textcoords='offset points')
+ax1.annotate('$c_{2i-1}$', xy=(1, 0.5*(coeff[1])), xycoords='data', xytext=(5, 0), textcoords='offset points')
+ax1.annotate('$c_{2i+1}$', xy=(3, 0.5*(coeff[3])), xycoords='data', xytext=(5, 0), textcoords='offset points')
 ax1.annotate('', xy=(2, 0), xytext=(2, 1), arrowprops=dict(arrowstyle="|-|", color='green', linewidth = 1, ls='--'))
 ax1.annotate('$1$', xy=(2, 0.5), xycoords='data', xytext=(5, 0), textcoords='offset points')
 
@@ -79,7 +80,7 @@ ax1.get_yaxis().set_visible(False)
 #                             color='b'))
 
 ax1.set_xticks(idx1)
-ax1.set_xticklabels(['$x^{j-2}$', '$x^{j-1}$','$x^{j}$','$x^{j+1}$','$x^{j+2}$',])
+ax1.set_xticklabels(['$x^{2i-2}$', '$x^{2i-1}$','$x^{2i}$','$x^{2i+1}$','$x^{2i+2}$',])
 ax1.tick_params(axis=u'both', which=u'both',length=0)
 #ax1.set_xlabel("x")
 #ax1.set_ylabel("y")

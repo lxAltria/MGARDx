@@ -38,6 +38,7 @@ def load_rate_distortion_given_field(dataset, compressor, field):
     ratio = np.loadtxt("result/{}_{}_ratio.txt".format(dataset, compressor))[field]
     return 32.0/ratio, psnr
 
+from os import remove
 from os import system
 from os import listdir
 from os.path import getsize
@@ -53,16 +54,15 @@ def run_mgard_decompose(folder, dims, level=20):
         filename = "{}/{}".format(folder, file)
         system("{} {} 0 {} 3 {} {} {}".format(decompose_exec, filename, level, dims[0], dims[1], dims[2]))
 
-def run_mgard(folder, dims, eb, level=1):
+def run_mgard(folder, dims, ebs):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
-    comp_exec='/Users/xin/github/MGARD/build/test/test_compress'
-    decomp_exec='/Users/xin/github/MGARD/build/test/test_decompress'
+    comp_exec='/Users/xin/github/MGARDx/build/test/test_compress'
+    decomp_exec='/Users/xin/github/MGARDx/build/test/test_decompress'
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
     # ebs = np.array([1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001])
-    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -77,27 +77,57 @@ def run_mgard(folder, dims, eb, level=1):
         value_range = np.max(data) - np.min(data)
         for j in range(num_eb):
             eb = ebs[j]
-            system("{} {} 0 {} {} 1 3 {} {} {}".format(comp_exec, filename, eb * value_range, level, dims[0], dims[1], dims[2]))
+            system("{} {} 0 {} 3 1 3 {} {} {}".format(comp_exec, filename, eb * value_range, dims[0], dims[1], dims[2]))
             system("{} {} {}.mgard 0 3 {} {} {}".format(decomp_exec, filename, filename, dims[0], dims[1], dims[2]))
             dec_data = np.fromfile(filename_decomp, dtype=np.float32)
             psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
             ratio[i, j] = getsize(filename) * 1.0 / getsize(filename_comp)
-    # np.savetxt("result/{}_mgard_level{}_psnr.txt".format(dataset_name, level), psnr)
-    # np.savetxt("result/{}_mgard_level{}_nrmse.txt".format(dataset_name, level), nrmse)
-    # np.savetxt("result/{}_mgard_level{}_ratio.txt".format(dataset_name, level), ratio)
+    # np.savetxt("result/{}_mgard_revised_OB_psnr.txt".format(dataset_name), psnr)
+    # np.savetxt("result/{}_mgard_revised_OB_nrmse.txt".format(dataset_name), nrmse)
+    # np.savetxt("result/{}_mgard_revised_OB_ratio.txt".format(dataset_name), ratio)
     br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
     print(br_overall)
     print(psnr_overall)
 
-def run_zfp(folder, dims, eb):
+def run_multilevel_sz(folder, dims, ebs):
+    dataset_name = folder[folder.rfind('/') + 1:]
+    if dataset_name == 'step48':
+        dataset_name = 'Hurricane'
+    comp_decomp_exec='/Users/xin/github/test_sz3/SZ3/build/test/sz_multilevel_interpolation_test'
+    data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
+    print(data_files)
+    num_fields = len(data_files)
+    num_eb = len(ebs)
+    psnr = np.zeros([num_fields, num_eb])
+    nrmse = np.zeros([num_fields, num_eb])
+    ratio = np.zeros([num_fields, num_eb])
+    for i in range(num_fields):
+        file = data_files[i]
+        filename = "{}/{}".format(folder, file)
+        filename_comp = "{}/{}.mlsz".format(folder, file)
+        filename_decomp = "{}/{}.mlsz.out".format(folder, file)
+        data = np.fromfile(filename, dtype=np.float32)
+        value_range = np.max(data) - np.min(data)
+        for j in range(num_eb):
+            eb = ebs[j]
+            system("{} {} 2 {} {} {} {}".format(comp_decomp_exec, filename, dims[0], dims[1], dims[2], eb))
+            dec_data = np.fromfile(filename_decomp, dtype=np.float32)
+            psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
+            ratio[i, j] = getsize(filename) * 1.0 / getsize(filename_comp)
+    # np.savetxt("result/{}_multilevel_sz_psnr.txt".format(dataset_name), psnr)
+    # np.savetxt("result/{}_multilevel_sz_nrmse.txt".format(dataset_name), nrmse)
+    # np.savetxt("result/{}_multilevel_sz_ratio.txt".format(dataset_name), ratio)
+    br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
+    print(br_overall)
+    print(psnr_overall)
+
+def run_zfp(folder, dims, ebs):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
     comp_exec='/Users/xin/github/zfp/bin/zfp'
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
-    # ebs = np.array([2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005])
-    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -123,7 +153,7 @@ def run_zfp(folder, dims, eb):
     print(br_overall)
     print(psnr_overall)
 
-def run_sz(folder, dims, eb):
+def run_sz(folder, dims, ebs):
     dataset_name = folder[folder.rfind('/') + 1:]
     if dataset_name == 'step48':
         dataset_name = 'Hurricane'
@@ -131,7 +161,6 @@ def run_sz(folder, dims, eb):
     data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
     print(data_files)
     # ebs = np.array([0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005])
-    ebs = np.array([eb])
     num_fields = len(data_files)
     num_eb = len(ebs)
     psnr = np.zeros([num_fields, num_eb])
@@ -154,6 +183,45 @@ def run_sz(folder, dims, eb):
     # np.savetxt("result/{}_sz_psnr.txt".format(dataset_name), psnr)
     # np.savetxt("result/{}_sz_nrmse.txt".format(dataset_name), nrmse)
     # np.savetxt("result/{}_sz_ratio.txt".format(dataset_name), ratio)
+    br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
+    print(br_overall) 
+    print(psnr_overall)
+
+def run_hybrid_model(folder, dims, ebs):
+    dataset_name = folder[folder.rfind('/') + 1:]
+    if dataset_name == 'step48':
+        dataset_name = 'Hurricane'
+    comp_decomp_exec='/Users/xin/github/hybrid_lossy_compression/build/sz_zfp_select'
+    data_files = sorted([f for f in listdir(folder) if f.endswith(".dat")])
+    print(data_files)
+    num_fields = len(data_files)
+    num_eb = len(ebs)
+    psnr = np.zeros([num_fields, num_eb])
+    nrmse = np.zeros([num_fields, num_eb])
+    ratio = np.zeros([num_fields, num_eb])
+    truncated_dims = np.copy(dims)
+    for i in range(len(dims)):
+        truncated_dims[i] = (dims[i] // 8) * 8
+    for i in range(num_fields):
+        file = data_files[i]
+        filename = "{}/{}".format(folder, file)
+        truncated_file = "truncated"
+        filename_comp = "truncated.select".format(folder, file)
+        filename_decomp = "truncated.select.out".format(folder, file)
+        np.fromfile(filename, dtype=np.float32).reshape(dims)[:truncated_dims[0], :truncated_dims[1], :truncated_dims[2]].tofile(truncated_file)
+        data = np.fromfile(truncated_file, dtype=np.float32)        
+        value_range = np.max(data) - np.min(data)
+        for j in range(num_eb):
+            eb = ebs[j]
+            system("{} {} {} {} {} {}".format(comp_decomp_exec, truncated_file, truncated_dims[2], truncated_dims[1], truncated_dims[0], eb))
+            dec_data = np.fromfile(filename_decomp, dtype=np.float32)
+            psnr[i, j], nrmse[i, j] = PSNR(data, dec_data)
+            ratio[i, j] = getsize(truncated_file) * 1.0 / getsize(filename_comp)
+            remove(filename_comp)
+            remove(filename_decomp)
+    # np.savetxt("result/{}_hybrid_psnr.txt".format(dataset_name), psnr)
+    # np.savetxt("result/{}_hybrid_nrmse.txt".format(dataset_name), nrmse)
+    # np.savetxt("result/{}_hybrid_ratio.txt".format(dataset_name), ratio)
     br_overall, psnr_overall = get_total_rate_distortion(nrmse, ratio)
     print(br_overall)
     print(psnr_overall)
