@@ -1,0 +1,87 @@
+start compress
+Compression time: 5.49995s
+
+Select=0 SZ, compressed_size: 31214, ratio: 1.72e+04
+
+Decompression time: 1.98995s
+Decompress all over
+Min=0.057996965944766998291, Max=115862.2890625, range=115862.234375
+Max absolute error = 926.5587768555
+Max relative error = 0.007997
+Max pw relative error = 287.646164
+PSNR = 87.993259, NRMSE= 3.9841626182585432065E-05
+acEff=0.982153
+compressionRatio=17199.683219
+start compress
+Compression time: 9.52612s
+
+Select=1 ZFP, compressed_size: 1211417, ratio: 443.2
+
+Decompression time: 2.08778s
+Decompress all over
+Min=0, Max=13778.9345703125, range=13778.9345703125
+Max absolute error = 65.5019683838
+Max relative error = 0.004754
+Max pw relative error = 24.843310
+PSNR = 79.008372, NRMSE= 0.00011209375253501996134
+acEff=0.985554
+compressionRatio=443.175977
+start compress
+Compression time: 10.1474s
+
+Select=1 ZFP, compressed_size: 1509274, ratio: 355.7
+
+Decompression time: 2.77625s
+Decompress all over
+Min=2280.975830078125, Max=4782583.5, range=4780302.5
+Max absolute error = 33148.9843750000
+Max relative error = 0.006934
+Max pw relative error = 2.947130
+PSNR = 73.458796, NRMSE= 0.0002123538898220232523
+acEff=0.997907
+compressionRatio=355.714676
+start compress
+Compression time: 10.2144s
+
+Select=1 ZFP, compressed_size: 6219937, ratio: 86.31
+
+Decompression time: 3.16161s
+Decompress all over
+Min=-50416856, Max=31866786, range=82283640
+Max absolute error = 510804.0000000000
+Max relative error = 0.006208
+Max pw relative error = 69943.791343
+PSNR = 67.997585, NRMSE= 0.00039821788343249715867
+acEff=0.999987
+compressionRatio=86.314526
+start compress
+Compression time: 10.2524s
+
+Select=1 ZFP, compressed_size: 6231586, ratio: 86.15
+
+Decompression time: 3.13484s
+Decompress all over
+Min=-43932888, Max=56505648, range=100438536
+Max absolute error = 581003.0000000000
+Max relative error = 0.005785
+Max pw relative error = 47239.732063
+PSNR = 69.670593, NRMSE= 0.00032845082425869579022
+acEff=0.999976
+compressionRatio=86.153174
+start compress
+Compression time: 10.2595s
+
+Select=1 ZFP, compressed_size: 7009797, ratio: 76.59
+
+Decompression time: 3.22444s
+Decompress all over
+Min=-38937960, Max=33386284, range=72324240
+Max absolute error = 521633.0000000000
+Max relative error = 0.007212
+Max pw relative error = 61572.987367
+PSNR = 66.804895, NRMSE= 0.00045683065274836396176
+acEff=0.999950
+compressionRatio=76.588653
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']
+[0.22066856]
+[70.50286444]

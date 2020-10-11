@@ -1,0 +1,15 @@
+Compression time: 0.3093 s
+Decompression time: 0.2618 s
+Compression time: 0.3852 s
+Decompression time: 0.3141 s
+Compression time: 1.329 s
+Decompression time: 0.7787 s
+Compression time: 2.498 s
+Decompression time: 0.9327 s
+Compression time: 2.085 s
+Decompression time: 0.8611 s
+Compression time: 2.26 s
+Decompression time: 0.9148 s
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']
+[0.24532286]
+[59.44239968]

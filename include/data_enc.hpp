@@ -10,6 +10,7 @@
 #include <bitset>
 #include <iomanip>
 #include "data_enc_opt.hpp"
+#include <climits>
 
 namespace REFACTOR{
 

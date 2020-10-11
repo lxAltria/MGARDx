@@ -1,0 +1,27 @@
+Compression time: 3.12 s
+Decompression time: 0.9246 s
+Compression time: 0.5535 s
+Decompression time: 0.354 s
+Compression time: 0.4268 s
+Decompression time: 0.2956 s
+Compression time: 0.6217 s
+Decompression time: 0.3755 s
+Compression time: 0.5396 s
+Decompression time: 0.3442 s
+Compression time: 0.8807 s
+Decompression time: 0.4505 s
+Compression time: 2.302 s
+Decompression time: 0.8258 s
+Compression time: 2.851 s
+Decompression time: 1.007 s
+Compression time: 3.96 s
+Decompression time: 1.009 s
+Compression time: 2.722 s
+Decompression time: 0.9649 s
+Compression time: 2.434 s
+Decompression time: 0.9428 s
+Compression time: 2.036 s
+Decompression time: 0.885 s
+['PRES-98x1200x1200.dat', 'QC-98x1200x1200.dat', 'QG-98x1200x1200.dat', 'QI-98x1200x1200.dat', 'QR-98x1200x1200.dat', 'QS-98x1200x1200.dat', 'QV-98x1200x1200.dat', 'RH-98x1200x1200.dat', 'T-98x1200x1200.dat', 'U-98x1200x1200.dat', 'V-98x1200x1200.dat', 'W-98x1200x1200.dat']
+[0.40430767]
+[57.49084185]

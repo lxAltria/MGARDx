@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cstdlib>
+#include <climits>
 
 namespace REFACTOR{
 

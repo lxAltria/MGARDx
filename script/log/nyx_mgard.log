@@ -1,0 +1,69 @@
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']
+512 512 512 
+Data = NYX/baryon_density.dat
+Required eb = 13903.5
+Decompose level = 3
+Compression time: 5.51184s
+512 512 512 
+Decompression time: 4.14261s
+Max value = 115862, min value = 0.057997
+Max error = 5072.78, pos = 63999369
+MSE = 62.8328, PSNR = 83.297
+Compression ratio = 73554
+512 512 512 
+Data = NYX/dark_matter_density.dat
+Required eb = 1653.47
+Decompose level = 3
+Compression time: 5.44937s
+512 512 512 
+Decompression time: 4.23532s
+Max value = 13778.9, min value = 0
+Max error = 669.248, pos = 35229975
+MSE = 17.2746, PSNR = 70.4102
+Compression ratio = 15536.3
+512 512 512 
+Data = NYX/temperature.dat
+Required eb = 573636
+Decompose level = 3
+Compression time: 5.37935s
+512 512 512 
+Decompression time: 4.15191s
+Max value = 4.78258e+06, min value = 2280.98
+Max error = 225758, pos = 54865252
+MSE = 8.93427e+06, PSNR = 64.0785
+Compression ratio = 7223.68
+512 512 512 
+Data = NYX/velocity_x.dat
+Required eb = 9.87404e+06
+Decompose level = 3
+Compression time: 5.36441s
+512 512 512 
+Decompression time: 4.22475s
+Max value = 3.18668e+07, min value = -5.04169e+07
+Max error = 4.26706e+06, pos = 23183036
+MSE = 1.24121e+10, PSNR = 57.3678
+Compression ratio = 1396.64
+512 512 512 
+Data = NYX/velocity_y.dat
+Required eb = 1.20526e+07
+Decompose level = 3
+Compression time: 5.40861s
+512 512 512 
+Decompression time: 4.17004s
+Max value = 5.65056e+07, min value = -4.39329e+07
+Max error = 4.96862e+06, pos = 49370461
+MSE = 1.43586e+10, PSNR = 58.4669
+Compression ratio = 1733.27
+512 512 512 
+Data = NYX/velocity_z.dat
+Required eb = 8.67891e+06
+Decompose level = 3
+Compression time: 5.48592s
+512 512 512 
+Decompression time: 4.26547s
+Max value = 3.33863e+07, min value = -3.8938e+07
+Max error = 3.76277e+06, pos = 64781194
+MSE = 1.09434e+10, PSNR = 56.7941
+Compression ratio = 1154.72
+[0.01266858]
+[60.12084023]

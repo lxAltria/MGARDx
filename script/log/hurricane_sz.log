@@ -1,0 +1,159 @@
+compression time = 0.908632
+compressed data file: Hurricane/CLOUDf48.bin.dat.sz
+Min=0, Max=0.0020479534287005662918, range=0.0020479534287005662918
+Max absolute error = 0.0000067582
+Max relative error = 0.003300
+Max pw relative error = 843747.650460
+PSNR = 65.204242, NRMSE= 0.00054927254150891893173
+normError = 0.005624, normErr_norm = 0.021107
+acEff=0.999771
+compressionRatio=95.190591
+decompression time = 0.402525 seconds.
+decompressed data file: Hurricane/CLOUDf48.bin.dat.sz.out
+compression time = 0.889907
+compressed data file: Hurricane/PRECIPf48.bin.dat.sz
+Min=0, Max=0.0075058611109852790833, range=0.0075058611109852790833
+Max absolute error = 0.0000247693
+Max relative error = 0.003300
+Max pw relative error = 1362963118582318177146787332096.000000
+PSNR = 65.684474, NRMSE= 0.00051972821339974222161
+normError = 0.019505, normErr_norm = 0.048917
+acEff=0.998774
+compressionRatio=183.959132
+decompression time = 0.398840 seconds.
+decompressed data file: Hurricane/PRECIPf48.bin.dat.sz.out
+compression time = 0.885976
+compressed data file: Hurricane/Pf48.bin.dat.sz
+Min=-3411.74072265625, Max=3224.39794921875, range=6636.138671875
+Max absolute error = 21.8992538452
+Max relative error = 0.003300
+Max pw relative error = 32705.434850
+PSNR = 63.738592, NRMSE= 0.00065023507612397646403
+normError = 21575.250672, normErr_norm = 0.006859
+acEff=0.999963
+compressionRatio=155.455718
+decompression time = 0.405956 seconds.
+decompressed data file: Hurricane/Pf48.bin.dat.sz.out
+compression time = 0.874600
+compressed data file: Hurricane/QCLOUDf48.bin.dat.sz
+Min=0, Max=0.0020479534287005662918, range=0.0020479534287005662918
+Max absolute error = 0.0000067582
+Max relative error = 0.003300
+Max pw relative error = 728473745930932115667419136.000000
+PSNR = 69.053655, NRMSE= 0.00035262836099509819315
+normError = 0.003611, normErr_norm = 0.014229
+acEff=0.999897
+compressionRatio=147.311853
+decompression time = 0.398925 seconds.
+decompressed data file: Hurricane/QCLOUDf48.bin.dat.sz.out
+compression time = 0.883821
+compressed data file: Hurricane/QGRAUPf48.bin.dat.sz
+Min=0, Max=0.0072951866313815116882, range=0.0072951866313815116882
+Max absolute error = 0.0000240741
+Max relative error = 0.003300
+Max pw relative error = 25563997641885911711972589568.000000
+PSNR = 69.567282, NRMSE= 0.00033238079227390849224
+normError = 0.012124, normErr_norm = 0.063746
+acEff=0.997946
+compressionRatio=471.789355
+decompression time = 0.394205 seconds.
+decompressed data file: Hurricane/QGRAUPf48.bin.dat.sz.out
+compression time = 0.870068
+compressed data file: Hurricane/QICEf48.bin.dat.sz
+Min=0, Max=0.00084636377869173884392, range=0.00084636377869173884392
+Max absolute error = 0.0000027930
+Max relative error = 0.003300
+Max pw relative error = 208660453150066.718750
+PSNR = 66.534328, NRMSE= 0.00047128500299179745467
+normError = 0.001994, normErr_norm = 0.024640
+acEff=0.999691
+compressionRatio=178.525203
+decompression time = 0.346069 seconds.
+decompressed data file: Hurricane/QICEf48.bin.dat.sz.out
+compression time = 0.879866
+compressed data file: Hurricane/QRAINf48.bin.dat.sz
+Min=0, Max=0.0063346456736326217651, range=0.0063346456736326217651
+Max absolute error = 0.0000209043
+Max relative error = 0.003300
+Max pw relative error = 2467914204304738622926009401344.000000
+PSNR = 68.711435, NRMSE= 0.00036679911104766873718
+normError = 0.011618, normErr_norm = 0.036156
+acEff=0.999340
+compressionRatio=323.051675
+decompression time = 0.396273 seconds.
+decompressed data file: Hurricane/QRAINf48.bin.dat.sz.out
+compression time = 0.888093
+compressed data file: Hurricane/QSNOWf48.bin.dat.sz
+Min=0, Max=0.00085602607578039169312, range=0.00085602607578039169312
+Max absolute error = 0.0000028249
+Max relative error = 0.003300
+Max pw relative error = 78356114106699045840443408384.000000
+PSNR = 65.820796, NRMSE= 0.00051163495593392323366
+normError = 0.002190, normErr_norm = 0.033349
+acEff=0.999430
+compressionRatio=170.217112
+decompression time = 0.350678 seconds.
+decompressed data file: Hurricane/QSNOWf48.bin.dat.sz.out
+compression time = 0.918409
+compressed data file: Hurricane/QVAPORf48.bin.dat.sz
+Min=0, Max=0.020420718938112258911, range=0.020420718938112258911
+Max absolute error = 0.0000673883
+Max relative error = 0.003300
+Max pw relative error = 6597907383964338.000000
+PSNR = 58.441280, NRMSE= 0.0011965642339239860887
+normError = 0.122174, normErr_norm = 0.005192
+acEff=0.999982
+compressionRatio=41.607497
+decompression time = 0.449791 seconds.
+decompressed data file: Hurricane/QVAPORf48.bin.dat.sz.out
+compression time = 0.901169
+compressed data file: Hurricane/TCf48.bin.dat.sz
+Min=-76.5544891357421875, Max=29.646656036376953125, range=106.201141357421875
+Max absolute error = 0.3504637480
+Max relative error = 0.003300
+Max pw relative error = 195888.365854
+PSNR = 58.120443, NRMSE= 0.0012415890183104655309
+normError = 659.290854, normErr_norm = 0.002985
+acEff=0.999991
+compressionRatio=81.671455
+decompression time = 0.418580 seconds.
+decompressed data file: Hurricane/TCf48.bin.dat.sz.out
+compression time = 0.959003
+compressed data file: Hurricane/Uf48.bin.dat.sz
+Min=-53.0225677490234375, Max=39.558197021484375, range=92.5807647705078125
+Max absolute error = 0.3055164814
+Max relative error = 0.003300
+Max pw relative error = 74206.836653
+PSNR = 55.390668, NRMSE= 0.0017000692436437614321
+normError = 786.968554, normErr_norm = 0.016554
+acEff=0.999855
+compressionRatio=31.340122
+decompression time = 0.461782 seconds.
+decompressed data file: Hurricane/Uf48.bin.dat.sz.out
+compression time = 0.936267
+compressed data file: Hurricane/Vf48.bin.dat.sz
+Min=-45.61463165283203125, Max=48.08579254150390625, range=93.7004241943359375
+Max absolute error = 0.3092113733
+Max relative error = 0.003300
+Max pw relative error = 247045.571429
+PSNR = 55.752890, NRMSE= 0.0016306303354169482227
+normError = 763.953771, normErr_norm = 0.013092
+acEff=0.999906
+compressionRatio=35.197337
+decompression time = 0.427011 seconds.
+decompressed data file: Hurricane/Vf48.bin.dat.sz.out
+compression time = 1.008903
+compressed data file: Hurricane/Wf48.bin.dat.sz
+Min=-3.2411470413208007812, Max=13.33321380615234375, range=16.574359893798828125
+Max absolute error = 0.0546953864
+Max relative error = 0.003300
+Max pw relative error = 8320465.000000
+PSNR = 55.633366, NRMSE= 0.0016532239093694049703
+normError = 137.005640, normErr_norm = 0.192774
+acEff=0.981327
+compressionRatio=30.279532
+decompression time = 0.449958 seconds.
+decompressed data file: Hurricane/Wf48.bin.dat.sz.out
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
+[0.43194279]
+[59.96555208]

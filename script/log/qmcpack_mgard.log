@@ -1,0 +1,14 @@
+['288x115x69x69.f32.qmc.dat']
+33120 69 69 
+Data = QMCPACK/288x115x69x69.f32.qmc.dat
+Required eb = 1.6505
+Decompose level = 3
+Compression time: 5.99686s
+33120 69 69 
+Decompression time: 4.63164s
+Max value = 16.505, min value = -16.505
+Max error = 0.797112, pos = 79946297
+MSE = 0.000988609, PSNR = 60.4227
+Compression ratio = 458.081
+[0.06985664]
+[60.4226639]

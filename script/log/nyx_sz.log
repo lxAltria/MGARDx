@@ -1,0 +1,75 @@
+compression time = 4.407858
+compressed data file: NYX/baryon_density.dat.sz
+Min=0.057996965944766998291, Max=115862.2890625, range=115862.234375
+Max absolute error = 2315.3164062500
+Max relative error = 0.019983
+Max pw relative error = 618.993525
+PSNR = 84.797487, NRMSE= 5.7560642371636160292E-05
+normError = 77263.161154, normErr_norm = 0.277792
+acEff=0.962149
+compressionRatio=28426.925342
+decompression time = 1.668808 seconds.
+decompressed data file: NYX/baryon_density.dat.sz.out
+compression time = 4.217186
+compressed data file: NYX/dark_matter_density.dat.sz
+Min=0, Max=13778.9345703125, range=13778.9345703125
+Max absolute error = 275.5560302734
+Max relative error = 0.019998
+Max pw relative error = 95861542.043675
+PSNR = 70.316350, NRMSE= 0.00030491758991342250793
+normError = 48674.674702, normErr_norm = 0.503772
+acEff=0.877684
+compressionRatio=4118.371525
+decompression time = 1.548257 seconds.
+decompressed data file: NYX/dark_matter_density.dat.sz.out
+compression time = 4.534134
+compressed data file: NYX/temperature.dat.sz
+Min=2280.975830078125, Max=4782583.5, range=4780302.5
+Max absolute error = 95605.2187500000
+Max relative error = 0.020000
+Max pw relative error = 17.938329
+PSNR = 65.405337, NRMSE= 0.00053670190407582678543
+normError = 29723055.839361, normErr_norm = 0.143867
+acEff=0.986740
+compressionRatio=1216.715646
+decompression time = 1.705383 seconds.
+decompressed data file: NYX/temperature.dat.sz.out
+compression time = 4.372063
+compressed data file: NYX/velocity_x.dat.sz
+Min=-50416856, Max=31866786, range=82283640
+Max absolute error = 1645672.0000000000
+Max relative error = 0.020000
+Max pw relative error = 924669.136827
+PSNR = 56.765167, NRMSE= 0.001451247994192829318
+normError = 1383439174.714886, normErr_norm = 0.018523
+acEff=0.999828
+compressionRatio=424.932613
+decompression time = 1.713931 seconds.
+decompressed data file: NYX/velocity_x.dat.sz.out
+compression time = 4.576378
+compressed data file: NYX/velocity_y.dat.sz
+Min=-43932888, Max=56505648, range=100438536
+Max absolute error = 2008768.0000000000
+Max relative error = 0.020000
+Max pw relative error = 1333911.206882
+PSNR = 58.415046, NRMSE= 0.0012001836067300588381
+normError = 1396538798.391071, normErr_norm = 0.025166
+acEff=0.999683
+compressionRatio=473.277971
+decompression time = 2.041874 seconds.
+decompressed data file: NYX/velocity_y.dat.sz.out
+compression time = 4.410830
+compressed data file: NYX/velocity_z.dat.sz
+Min=-38937960, Max=33386284, range=72324240
+Max absolute error = 1446483.0000000000
+Max relative error = 0.020000
+Max pw relative error = 18331661.383044
+PSNR = 56.401626, NRMSE= 0.0015132778889814797307
+normError = 1267965703.271379, normErr_norm = 0.033011
+acEff=0.999455
+compressionRatio=365.520670
+decompression time = 1.718787 seconds.
+decompressed data file: NYX/velocity_z.dat.sz.out
+['baryon_density.dat', 'dark_matter_density.dat', 'temperature.dat', 'velocity_x.dat', 'velocity_y.dat', 'velocity_z.dat']
+[0.044277]
+[59.84296514]

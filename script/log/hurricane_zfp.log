@@ -1,0 +1,29 @@
+Compression time: 0.147 s
+Decompression time: 0.09065 s
+Compression time: 0.1174 s
+Decompression time: 0.07032 s
+Compression time: 0.4697 s
+Decompression time: 0.1665 s
+Compression time: 0.1088 s
+Decompression time: 0.07384 s
+Compression time: 0.08077 s
+Decompression time: 0.05492 s
+Compression time: 0.1086 s
+Decompression time: 0.06859 s
+Compression time: 0.08672 s
+Decompression time: 0.05818 s
+Compression time: 0.1109 s
+Decompression time: 0.06854 s
+Compression time: 0.4066 s
+Decompression time: 0.1699 s
+Compression time: 0.6023 s
+Decompression time: 0.2142 s
+Compression time: 0.5161 s
+Decompression time: 0.1905 s
+Compression time: 0.5247 s
+Decompression time: 0.1909 s
+Compression time: 0.4143 s
+Decompression time: 0.2003 s
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
+[0.43828027]
+[59.68399774]

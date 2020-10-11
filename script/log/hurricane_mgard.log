@@ -1,0 +1,148 @@
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
+100 500 500 
+Data = Hurricane/CLOUDf48.bin.dat
+Required eb = 4.71029e-05
+Decompose level = 3
+Compression time: 1.03773s
+100 500 500 
+Decompression time: 0.848067s
+Max value = 0.00204795, min value = 0
+Max error = 2.27062e-05, pos = 11803000
+MSE = 3.73157e-12, PSNR = 60.5075
+Compression ratio = 81.4614
+100 500 500 
+Data = Hurricane/PRECIPf48.bin.dat
+Required eb = 0.000172635
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 0.987266s
+100 500 500 
+Decompression time: 0.793444s
+Max value = 0.00750586, min value = 0
+Max error = 7.97212e-05, pos = 10046612
+MSE = 2.33239e-11, PSNR = 63.83
+Compression ratio = 219
+100 500 500 
+Data = Hurricane/Pf48.bin.dat
+Required eb = 152.631
+Decompose level = 3
+Compression time: 0.982568s
+100 500 500 
+Decompression time: 0.772078s
+Max value = 3224.4, min value = -3411.74
+Max error = 68.657, pos = 3427258
+MSE = 18.0431, PSNR = 63.8752
+Compression ratio = 264.656
+100 500 500 
+Data = Hurricane/QCLOUDf48.bin.dat
+Required eb = 4.71029e-05
+Decompose level = 3
+Compression time: 0.987091s
+100 500 500 
+Decompression time: 0.79971s
+Max value = 0.00204795, min value = 0
+Max error = 2.21306e-05, pos = 1245109
+MSE = 2.5866e-12, PSNR = 62.0991
+Compression ratio = 102.216
+100 500 500 
+Data = Hurricane/QGRAUPf48.bin.dat
+Required eb = 0.000167789
+Decompose level = 3
+Compression time: 1.00467s
+100 500 500 
+Decompression time: 0.766995s
+Max value = 0.00729519, min value = 0
+Max error = 6.8973e-05, pos = 8083084
+MSE = 6.9759e-12, PSNR = 68.8247
+Compression ratio = 592.378
+100 500 500 
+Data = Hurricane/QICEf48.bin.dat
+Required eb = 1.94664e-05
+Decompose level = 3
+Compression time: 1.02611s
+100 500 500 
+Decompression time: 0.808979s
+Max value = 0.000846364, min value = 0
+Max error = 9.76199e-06, pos = 7802174
+MSE = 3.53024e-13, PSNR = 63.0731
+Compression ratio = 184.257
+100 500 500 
+Data = Hurricane/QRAINf48.bin.dat
+Required eb = 0.000145697
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 0.968136s
+100 500 500 
+Decompression time: 0.752823s
+Max value = 0.00633465, min value = 0
+Max error = 7.18621e-05, pos = 3368568
+MSE = 1.11909e-11, PSNR = 65.5458
+Compression ratio = 309.991
+100 500 500 
+Data = Hurricane/QSNOWf48.bin.dat
+Required eb = 1.96886e-05
+Decompose level = 3
+Compression time: 0.967916s
+100 500 500 
+Decompression time: 0.788564s
+Max value = 0.000856026, min value = 0
+Max error = 8.78538e-06, pos = 7310008
+MSE = 3.14976e-13, PSNR = 63.667
+Compression ratio = 213.452
+100 500 500 
+Data = Hurricane/QVAPORf48.bin.dat
+Required eb = 0.000469677
+Decompose level = 3
+Compression time: 0.995162s
+100 500 500 
+Decompression time: 0.79231s
+Max value = 0.0204207, min value = 0
+Max error = 0.000232806, pos = 2605321
+MSE = 8.62126e-10, PSNR = 56.8457
+Compression ratio = 63.2693
+100 500 500 
+Data = Hurricane/TCf48.bin.dat
+Required eb = 2.44263
+Decompose level = 3
+Compression time: 0.988096s
+100 500 500 
+Decompression time: 0.722569s
+Max value = 29.6467, min value = -76.5545
+Max error = 1.05341, pos = 2239626
+MSE = 0.00844777, PSNR = 61.2552
+Compression ratio = 173.311
+100 500 500 
+Data = Hurricane/Uf48.bin.dat
+Required eb = 2.12936
+Decompose level = 3
+Compression time: 0.971518s
+100 500 500 
+Decompression time: 0.863273s
+Max value = 39.5582, min value = -53.0226
+Max error = 0.971001, pos = 7078564
+MSE = 0.0145278, PSNR = 57.7084
+Compression ratio = 79.7087
+100 500 500 
+Data = Hurricane/Vf48.bin.dat
+Required eb = 2.15511
+Decompose level = 3
+Compression time: 0.986191s
+100 500 500 
+Decompression time: 0.840725s
+Max value = 48.0858, min value = -45.6146
+Max error = 0.994229, pos = 189178
+MSE = 0.0140926, PSNR = 57.9449
+Compression ratio = 84.1328
+100 500 500 
+Data = Hurricane/Wf48.bin.dat
+Required eb = 0.38121
+Decompose level = 3
+Compression time: 1.00724s
+100 500 500 
+Decompression time: 0.851029s
+Max value = 13.3332, min value = -3.24115
+Max error = 0.188619, pos = 7553167
+MSE = 0.000711555, PSNR = 55.8666
+Compression ratio = 59.4364
+[0.26649002]
+[60.21592458]

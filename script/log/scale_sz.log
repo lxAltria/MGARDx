@@ -1,0 +1,147 @@
+compression time = 4.802290
+compressed data file: SCALE/PRES-98x1200x1200.dat.sz
+Min=2285.463134765625, Max=101820.21875, range=99534.7578125
+Max absolute error = 298.6015625000
+Max relative error = 0.003000
+Max pw relative error = 0.018928
+PSNR = 67.117129, NRMSE= 0.00044070048857355973446
+normError = 521089.809272, normErr_norm = 0.000816
+acEff=0.999999
+compressionRatio=443.128053
+decompression time = 2.202200 seconds.
+decompressed data file: SCALE/PRES-98x1200x1200.dat.sz.out
+compression time = 4.945745
+compressed data file: SCALE/QC-98x1200x1200.dat.sz
+Min=0, Max=0.0030115311965346336365, range=0.0030115311965346336365
+Max absolute error = 0.0000090346
+Max relative error = 0.003000
+Max pw relative error = 39976572945264166093843953876992.000000
+PSNR = 66.272943, NRMSE= 0.00048568296010644679533
+normError = 0.017375, normErr_norm = 0.030838
+acEff=0.999516
+compressionRatio=230.999373
+decompression time = 2.224571 seconds.
+decompressed data file: SCALE/QC-98x1200x1200.dat.sz.out
+compression time = 4.884768
+compressed data file: SCALE/QG-98x1200x1200.dat.sz
+Min=0, Max=0.014881308190524578094, range=0.014881308190524578094
+Max absolute error = 0.0000446439
+Max relative error = 0.003000
+Max pw relative error = 5998130857266.176758
+PSNR = 72.158113, NRMSE= 0.00024665750418331543843
+normError = 0.043604, normErr_norm = 0.017947
+acEff=0.999838
+compressionRatio=857.168889
+decompression time = 2.188516 seconds.
+decompressed data file: SCALE/QG-98x1200x1200.dat.sz.out
+compression time = 4.998977
+compressed data file: SCALE/QI-98x1200x1200.dat.sz
+Min=0, Max=0.0016005001962184906006, range=0.0016005001962184906006
+Max absolute error = 0.0000048015
+Max relative error = 0.003000
+Max pw relative error = 10159468663649027078446607499264.000000
+PSNR = 65.370105, NRMSE= 0.0005388833618531497496
+normError = 0.010246, normErr_norm = 0.032694
+acEff=0.999452
+compressionRatio=324.920782
+decompression time = 2.209241 seconds.
+decompressed data file: SCALE/QI-98x1200x1200.dat.sz.out
+compression time = 4.951067
+compressed data file: SCALE/QR-98x1200x1200.dat.sz
+Min=0, Max=0.0063720666803419589996, range=0.0063720666803419589996
+Max absolute error = 0.0000191162
+Max relative error = 0.003000
+Max pw relative error = 5171399623119.435547
+PSNR = 69.311562, NRMSE= 0.00034231183365093120112
+normError = 0.025912, normErr_norm = 0.023674
+acEff=0.999714
+compressionRatio=465.859423
+decompression time = 2.182785 seconds.
+decompressed data file: SCALE/QR-98x1200x1200.dat.sz.out
+compression time = 4.997442
+compressed data file: SCALE/QS-98x1200x1200.dat.sz
+Min=0, Max=0.00075696915155276656151, range=0.00075696915155276656151
+Max absolute error = 0.0000022709
+Max relative error = 0.003000
+Max pw relative error = 274636715473.301849
+PSNR = 61.641624, NRMSE= 0.000827787398712443237
+normError = 0.007444, normErr_norm = 0.029601
+acEff=0.999517
+compressionRatio=134.345015
+decompression time = 2.283212 seconds.
+decompressed data file: SCALE/QS-98x1200x1200.dat.sz.out
+compression time = 5.087798
+compressed data file: SCALE/QV-98x1200x1200.dat.sz
+Min=0, Max=0.019523363560438156128, range=0.019523363560438156128
+Max absolute error = 0.0000585701
+Max relative error = 0.003000
+Max pw relative error = 4730.550981
+PSNR = 58.015497, NRMSE= 0.0012566812843835179804
+normError = 0.291457, normErr_norm = 0.003585
+acEff=0.999989
+compressionRatio=54.400318
+decompression time = 2.273973 seconds.
+decompressed data file: SCALE/QV-98x1200x1200.dat.sz.out
+compression time = 5.260478
+compressed data file: SCALE/RH-98x1200x1200.dat.sz
+Min=0, Max=204.472930908203125, range=204.472930908203125
+Max absolute error = 0.6134186983
+Max relative error = 0.003000
+Max pw relative error = 2978.721644
+PSNR = 55.895496, NRMSE= 0.0016040769915721341497
+normError = 3896.326260, normErr_norm = 0.006150
+acEff=0.999937
+compressionRatio=33.012665
+decompression time = 2.551128 seconds.
+decompressed data file: SCALE/RH-98x1200x1200.dat.sz.out
+compression time = 4.885901
+compressed data file: SCALE/T-98x1200x1200.dat.sz
+Min=181.9152984619140625, Max=314.630126953125, range=132.7148284912109375
+Max absolute error = 0.3981323242
+Max relative error = 0.003000
+Max pw relative error = 0.002167
+PSNR = 57.367571, NRMSE= 0.0013540087229532622205
+normError = 2134.691871, normErr_norm = 0.000709
+acEff=0.999987
+compressionRatio=109.989677
+decompression time = 2.258854 seconds.
+decompressed data file: SCALE/T-98x1200x1200.dat.sz.out
+compression time = 5.028924
+compressed data file: SCALE/U-98x1200x1200.dat.sz
+Min=-71.7543182373046875, Max=46.676639556884765625, range=118.4309539794921875
+Max absolute error = 0.3552927971
+Max relative error = 0.003000
+Max pw relative error = 722441.276157
+PSNR = 56.298022, NRMSE= 0.001531436255711632376
+normError = 2154.559222, normErr_norm = 0.017372
+acEff=0.999782
+compressionRatio=54.793643
+decompression time = 2.287625 seconds.
+decompressed data file: SCALE/U-98x1200x1200.dat.sz.out
+compression time = 5.002175
+compressed data file: SCALE/V-98x1200x1200.dat.sz
+Min=-40.154949188232421875, Max=59.4211273193359375, range=99.576080322265625
+Max absolute error = 0.2987282276
+Max relative error = 0.003000
+Max pw relative error = 925063.672225
+PSNR = 56.152115, NRMSE= 0.0015573787356671804898
+normError = 1842.228732, normErr_norm = 0.023438
+acEff=0.999724
+compressionRatio=48.209008
+decompression time = 2.332284 seconds.
+decompressed data file: SCALE/V-98x1200x1200.dat.sz.out
+compression time = 4.845988
+compressed data file: SCALE/W-98x1200x1200.dat.sz
+Min=-37.12139892578125, Max=26.77117919921875, range=63.892578125
+Max absolute error = 0.1916777194
+Max relative error = 0.003000
+Max pw relative error = 127648830371697568.000000
+PSNR = 58.600788, NRMSE= 0.0011747909308957703994
+normError = 891.672313, normErr_norm = 0.052047
+acEff=0.998646
+compressionRatio=68.838705
+decompression time = 2.136755 seconds.
+decompressed data file: SCALE/W-98x1200x1200.dat.sz.out
+['PRES-98x1200x1200.dat', 'QC-98x1200x1200.dat', 'QG-98x1200x1200.dat', 'QI-98x1200x1200.dat', 'QR-98x1200x1200.dat', 'QS-98x1200x1200.dat', 'QV-98x1200x1200.dat', 'RH-98x1200x1200.dat', 'T-98x1200x1200.dat', 'U-98x1200x1200.dat', 'V-98x1200x1200.dat', 'W-98x1200x1200.dat']
+[0.35121473]
+[59.41819452]

@@ -1,0 +1,144 @@
+['PRES-98x1200x1200.dat', 'QC-98x1200x1200.dat', 'QG-98x1200x1200.dat', 'QI-98x1200x1200.dat', 'QR-98x1200x1200.dat', 'QS-98x1200x1200.dat', 'QV-98x1200x1200.dat', 'RH-98x1200x1200.dat', 'T-98x1200x1200.dat', 'U-98x1200x1200.dat', 'V-98x1200x1200.dat', 'W-98x1200x1200.dat']
+98 1200 1200 
+Data = SCALE/PRES-98x1200x1200.dat
+Required eb = 1990.7
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.09291s
+98 1200 1200 
+Decompression time: 3.87478s
+Max value = 101820, min value = 2285.46
+Max error = 370.703, pos = 3900784
+MSE = 1629.69, PSNR = 67.8384
+Compression ratio = 1064.12
+98 1200 1200 
+Data = SCALE/QC-98x1200x1200.dat
+Required eb = 6.02306e-05
+Decompose level = 3
+Compression time: 5.31576s
+98 1200 1200 
+Decompression time: 4.18895s
+Max value = 0.00301153, min value = 0
+Max error = 2.84002e-05, pos = 45679438
+MSE = 2.58546e-12, PSNR = 65.4504
+Compression ratio = 368.697
+98 1200 1200 
+Data = SCALE/QG-98x1200x1200.dat
+Required eb = 0.000297626
+Decompose level = 3
+Compression time: 4.93126s
+98 1200 1200 
+Decompression time: 3.61673s
+Max value = 0.0148813, min value = 0
+Max error = 0.000132476, pos = 63026682
+MSE = 1.47941e-11, PSNR = 71.7519
+Compression ratio = 1480.85
+98 1200 1200 
+Data = SCALE/QI-98x1200x1200.dat
+Required eb = 3.201e-05
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.20673s
+98 1200 1200 
+Decompression time: 3.63019s
+Max value = 0.0016005, min value = 0
+Max error = 1.58514e-05, pos = 74577636
+MSE = 6.92308e-13, PSNR = 65.6821
+Compression ratio = 678.802
+98 1200 1200 
+Data = SCALE/QR-98x1200x1200.dat
+Required eb = 0.000127441
+Decompose level = 3
+Compression time: 5.07112s
+98 1200 1200 
+Decompression time: 4.09409s
+Max value = 0.00637207, min value = 0
+Max error = 5.68678e-05, pos = 51498162
+MSE = 4.10787e-12, PSNR = 69.9494
+Compression ratio = 971.289
+98 1200 1200 
+Data = SCALE/QS-98x1200x1200.dat
+Required eb = 1.51394e-05
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.0887s
+98 1200 1200 
+Decompression time: 4.05897s
+Max value = 0.000756969, min value = 0
+Max error = 7.38725e-06, pos = 82184374
+MSE = 3.56356e-13, PSNR = 62.0627
+Compression ratio = 305.533
+98 1200 1200 
+Data = SCALE/QV-98x1200x1200.dat
+Required eb = 0.000390467
+Decompose level = 3
+switch to SZ (lorenzo) at level 1
+Compression time: 5.17187s
+98 1200 1200 
+Decompression time: 3.68079s
+Max value = 0.0195234, min value = 0
+Max error = 0.000214474, pos = 45809214
+MSE = 7.33167e-10, PSNR = 57.1591
+Compression ratio = 159.982
+98 1200 1200 
+Data = SCALE/RH-98x1200x1200.dat
+Required eb = 4.08946
+Decompose level = 3
+switch to SZ (lorenzo) at level 1
+Compression time: 5.21788s
+98 1200 1200 
+Decompression time: 3.73513s
+Max value = 204.473, min value = 0
+Max error = 2.48498, pos = 846616
+MSE = 0.152933, PSNR = 54.3677
+Compression ratio = 93.9147
+98 1200 1200 
+Data = SCALE/T-98x1200x1200.dat
+Required eb = 2.6543
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.01925s
+98 1200 1200 
+Decompression time: 3.65558s
+Max value = 314.63, min value = 181.915
+Max error = 1.35437, pos = 243002
+MSE = 0.0158698, PSNR = 60.4527
+Compression ratio = 308.708
+98 1200 1200 
+Data = SCALE/U-98x1200x1200.dat
+Required eb = 2.36862
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.09668s
+98 1200 1200 
+Decompression time: 4.12692s
+Max value = 46.6766, min value = -71.7543
+Max error = 1.1781, pos = 42895464
+MSE = 0.0215081, PSNR = 58.1433
+Compression ratio = 181.992
+98 1200 1200 
+Data = SCALE/V-98x1200x1200.dat
+Required eb = 1.99152
+Decompose level = 3
+switch to SZ (lorenzo) at level 1
+Compression time: 5.24258s
+98 1200 1200 
+Decompression time: 3.96537s
+Max value = 59.4211, min value = -40.1549
+Max error = 1.12047, pos = 672789
+MSE = 0.0230483, PSNR = 56.3367
+Compression ratio = 138.894
+98 1200 1200 
+Data = SCALE/W-98x1200x1200.dat
+Required eb = 1.27785
+Decompose level = 3
+switch to SZ (lorenzo) at level 2
+Compression time: 5.17718s
+98 1200 1200 
+Decompression time: 4.16313s
+Max value = 26.7712, min value = -37.1214
+Max error = 0.601799, pos = 97629659
+MSE = 0.00262758, PSNR = 61.9135
+Compression ratio = 218.614
+[0.12669255]
+[59.8249014]

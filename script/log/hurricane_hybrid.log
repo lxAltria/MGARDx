@@ -1,0 +1,185 @@
+start compress
+Compression time: 1.93819s
+
+Select=1 ZFP, compressed_size: 898755, ratio: 105.1
+
+Decompression time: 0.480732s
+Decompress all over
+Min=0, Max=0.0020479534287005662918, range=0.0020479534287005662918
+Max absolute error = 0.0000143357
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 57.608882, NRMSE= 0.0013169093444890113236
+acEff=0.998733
+compressionRatio=105.112232
+start compress
+Compression time: 2.24196s
+
+Select=1 ZFP, compressed_size: 447527, ratio: 211.1
+
+Decompression time: 0.506903s
+Decompress all over
+Min=0, Max=0.0075058611109852790833, range=0.0075058611109852790833
+Max absolute error = 0.0000525399
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 67.428083, NRMSE= 0.00042520255297505291309
+acEff=0.999246
+compressionRatio=211.093731
+start compress
+Compression time: 1.53217s
+
+Select=0 SZ, compressed_size: 384250, ratio: 245.9
+
+Decompression time: 0.374103s
+Decompress all over
+Min=-3411.74072265625, Max=2922.3212890625, range=6334.06201171875
+Max absolute error = 44.3384246826
+Max relative error = 0.007000
+Max pw relative error = 38.143987
+PSNR = 60.727445, NRMSE= 0.0009196609713342996555
+acEff=0.999934
+compressionRatio=245.855938
+start compress
+Compression time: 1.42645s
+
+Select=0 SZ, compressed_size: 505475, ratio: 186.9
+
+Decompression time: 0.365892s
+Decompress all over
+Min=0, Max=0.0020479534287005662918, range=0.0020479534287005662918
+Max absolute error = 0.0000143357
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 62.291171, NRMSE= 0.0007681418541294042111
+acEff=0.999539
+compressionRatio=186.893801
+start compress
+Compression time: 2.28705s
+
+Select=1 ZFP, compressed_size: 268131, ratio: 352.3
+
+Decompression time: 0.426198s
+Decompress all over
+Min=0, Max=0.0072951866313815116882, range=0.0072951866313815116882
+Max absolute error = 0.0000510625
+Max relative error = 0.006999
+Max pw relative error = 0.000000
+PSNR = 75.916327, NRMSE= 0.00016002346530111973282
+acEff=0.999560
+compressionRatio=352.328317
+start compress
+Compression time: 1.94673s
+
+Select=1 ZFP, compressed_size: 440499, ratio: 214.5
+
+Decompression time: 0.523815s
+Decompress all over
+Min=0, Max=0.00084636377869173884392, range=0.00084636377869173884392
+Max absolute error = 0.0000059245
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 66.025918, NRMSE= 0.00049969396349907116428
+acEff=0.999578
+compressionRatio=214.461654
+start compress
+Compression time: 2.29223s
+
+Select=1 ZFP, compressed_size: 327824, ratio: 288.2
+
+Decompression time: 0.434374s
+Decompress all over
+Min=0, Max=0.0063346456736326217651, range=0.0063346456736326217651
+Max absolute error = 0.0000443424
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 68.492898, NRMSE= 0.00037614483672555361219
+acEff=0.999361
+compressionRatio=288.173361
+start compress
+Compression time: 2.24366s
+
+Select=1 ZFP, compressed_size: 451758, ratio: 209.1
+
+Decompression time: 0.501329s
+Decompress all over
+Min=0, Max=0.00085602607578039169312, range=0.00085602607578039169312
+Max absolute error = 0.0000059922
+Max relative error = 0.007000
+Max pw relative error = 0.000000
+PSNR = 66.527257, NRMSE= 0.00047166881855984318277
+acEff=0.999484
+compressionRatio=209.116704
+start compress
+Compression time: 2.33325s
+
+Select=1 ZFP, compressed_size: 3168092, ratio: 29.82
+
+Decompression time: 0.705589s
+Decompress all over
+Min=0, Max=0.020420718938112258911, range=0.020420718938112258911
+Max absolute error = 0.0001396043
+Max relative error = 0.006836
+Max pw relative error = 0.000000
+PSNR = 66.889798, NRMSE= 0.00045238696175732101513
+acEff=0.999998
+compressionRatio=29.819255
+start compress
+Compression time: 3.18748s
+
+Select=1 ZFP, compressed_size: 539574, ratio: 175.1
+
+Decompression time: 0.949183s
+Decompress all over
+Min=-75.87337493896484375, Max=29.646656036376953125, range=105.5200347900390625
+Max absolute error = 0.7386398315
+Max relative error = 0.007000
+Max pw relative error = 0.721816
+PSNR = 56.505999, NRMSE= 0.0014952025442349190128
+acEff=0.999987
+compressionRatio=175.082832
+start compress
+Compression time: 2.31121s
+
+Select=1 ZFP, compressed_size: 1208783, ratio: 78.15
+
+Decompression time: 0.617356s
+Decompress all over
+Min=-53.0225677490234375, Max=39.558197021484375, range=92.5807647705078125
+Max absolute error = 0.6480584145
+Max relative error = 0.007000
+Max pw relative error = 0.642361
+PSNR = 57.205961, NRMSE= 0.0013794372457822080217
+acEff=0.999907
+compressionRatio=78.153104
+start compress
+Compression time: 2.31245s
+
+Select=1 ZFP, compressed_size: 1178884, ratio: 80.14
+
+Decompression time: 0.674262s
+Decompress all over
+Min=-45.61463165283203125, Max=48.08579254150390625, range=93.7004241943359375
+Max absolute error = 0.6558970213
+Max relative error = 0.007000
+Max pw relative error = 0.643306
+PSNR = 57.407586, NRMSE= 0.0013477852170870612165
+acEff=0.999937
+compressionRatio=80.135233
+start compress
+Compression time: 2.29806s
+
+Select=1 ZFP, compressed_size: 1277950, ratio: 73.92
+
+Decompression time: 0.64165s
+Decompress all over
+Min=-3.2411470413208007812, Max=13.33321380615234375, range=16.574359893798828125
+Max absolute error = 0.1160200685
+Max relative error = 0.007000
+Max pw relative error = 0.115888
+PSNR = 55.413329, NRMSE= 0.0016956395337126162898
+acEff=0.980932
+compressionRatio=73.923193
+['CLOUDf48.bin.dat', 'PRECIPf48.bin.dat', 'Pf48.bin.dat', 'QCLOUDf48.bin.dat', 'QGRAUPf48.bin.dat', 'QICEf48.bin.dat', 'QRAINf48.bin.dat', 'QSNOWf48.bin.dat', 'QVAPORf48.bin.dat', 'TCf48.bin.dat', 'Uf48.bin.dat', 'Vf48.bin.dat', 'Wf48.bin.dat']
+[0.28915938]
+[59.99166521]

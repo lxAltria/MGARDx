@@ -1,0 +1,15 @@
+compression time = 5.668566
+compressed data file: QMCPACK/288x115x69x69.f32.qmc.dat.sz
+Min=-16.505008697509765625, Max=16.505008697509765625, range=33.01001739501953125
+Max absolute error = 0.1650500894
+Max relative error = 0.005000
+Max pw relative error = 426516693084.107422
+PSNR = 59.728976, NRMSE= 0.0010316946782476059657
+normError = 427.652680, normErr_norm = 0.045410
+acEff=0.998968
+compressionRatio=128.248656
+decompression time = 2.175496 seconds.
+decompressed data file: QMCPACK/288x115x69x69.f32.qmc.dat.sz.out
+['288x115x69x69.f32.qmc.dat']
+[0.24951528]
+[59.72896816]

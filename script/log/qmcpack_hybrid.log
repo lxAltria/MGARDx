@@ -1,0 +1,17 @@
+start compress
+Compression time: 15.1523s
+
+Select=1 ZFP, compressed_size: 3656879, ratio: 148.4
+
+Decompression time: 3.29923s
+Decompress all over
+Min=-16.505008697509765625, Max=16.505008697509765625, range=33.01001739501953125
+Max absolute error = 0.2310700417
+Max relative error = 0.007000
+Max pw relative error = 0.230446
+PSNR = 59.533757, NRMSE= 0.0010551450641876187163
+acEff=0.998884
+compressionRatio=148.388306
+['288x115x69x69.f32.qmc.dat']
+[0.21565042]
+[59.53375761]

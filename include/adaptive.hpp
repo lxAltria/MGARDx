@@ -109,8 +109,8 @@ bool switch_to_lorenzo(const T * data, size_t n1, size_t n2, size_t n3, size_t d
         }
         x_data_pos += stride * dim0_stride;
     }
-    cout << "lorenzo_err = " << lorenzo_err << endl;
-    cout << "interpolation_err = " << interpolation_err << endl;
+    //cout << "lorenzo_err = " << lorenzo_err << endl;
+    //cout << "interpolation_err = " << interpolation_err << endl;
     return lorenzo_err < interpolation_err;
 }    
 

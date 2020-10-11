@@ -4,6 +4,8 @@
 #include <vector>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
+#include <climits>
 #include "utils.hpp"
 #include "sz_decompress_3d.hpp"
 
