@@ -1,15 +1,18 @@
 cmake_minimum_required (VERSION 3.0)
-project(xMGARD)
+project(MGARDx)
 project(First VERSION 1.0.0.0)
 set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 set (CMAKE_CXX_FLAGS "-g -O3")
 
-find_library(ZSTD_LIB zstd HINTS "/Users/xin/github/SZ_master/build/zstd")
-find_library(SZ3_LIB SZ3 HINTS "/Users/xin/github/SZ_refactory/build/src")
-find_library(SZ_CPP_LIB sz_cpp HINTS "/Users/xin/github/meta_compressor/build/lib")
-set (ZSTD_INC "/Users/xin/github/SZ_master/zstd")
-set (SZ3_INC "/Users/xin/github/SZ_refactory/include")
-set (SZ_CPP_INC "/Users/xin/github/meta_compressor/build/include")
+message(STATUS "${CMAKE_INSTALL_PREFIX}")
+message(STATUS "${CMAKE_INSTALL_PREFIX}")
+add_library(${PROJECT_NAME} INTERFACE)
+target_include_directories(${PROJECT_NAME} INTERFACE include)
+install(TARGETS ${PROJECT_NAME}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+        INCLUDES DESTINATION ${CMAKE_INSTALL_PREFIX}/include
+        )
 
 add_subdirectory (test)
