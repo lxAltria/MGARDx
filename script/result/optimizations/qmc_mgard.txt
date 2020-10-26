@@ -1,4 +1,0 @@
-Start decomposition
-Decomposition time = 211.439s
-Start recomposition
-Recomposition time = 237.196s

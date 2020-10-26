@@ -1,7 +1,0 @@
-33120 69 69 
-Decomposition time: 5.06955s
-Recomposition time: 5.052s
-Max value = 16.505, min value = -16.505
-Max error = 3.8147e-06, pos = 76637816
-MSE = 2.92493e-15, PSNR = 175.712
-['288x115x69x69.f32.qmc.dat']
