@@ -21,14 +21,14 @@ bool switch_to_lorenzo(const T * data, size_t n1, size_t n2, size_t n3, size_t d
     // 2: 0.11780477898778749
     // 4: 0.08246182716496642
     // 8: 0.05797762514799185
-    double nodal_noise_2 = eb * 0.5177;
-    double nodal_noise_4 = eb * 0.3664;
-    double nodal_noise_8 = eb * 0.2588;
-    if(hierarchical){
-        nodal_noise_2 = eb * 0.1178;
-        nodal_noise_4 = eb * 0.0825;
-        nodal_noise_8 = eb * 0.0580;
-    }
+    double nodal_noise_2 = eb * 0.3692;
+    double nodal_noise_4 = eb * 0.2588;
+    double nodal_noise_8 = eb * 0.1820;
+    // if(hierarchical){
+    //     nodal_noise_2 = eb * 0.1178;
+    //     nodal_noise_4 = eb * 0.0825;
+    //     nodal_noise_8 = eb * 0.0580;
+    // }
     double interpolation_err = 0;
     const vector<size_t> coefficient_stride{
         1, 2*dim1_stride + 1, 2*dim0_stride + 1, 2*dim0_stride + 2*dim1_stride + 1, // nodal_nodal_coeff

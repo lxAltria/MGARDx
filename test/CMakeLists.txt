@@ -21,3 +21,18 @@ target_include_directories(test_refactor PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(test_refactor PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
 target_link_libraries(test_refactor ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
 
+add_executable (test_retrieval test_retrieval.cpp)
+target_include_directories(test_retrieval PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_retrieval PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_retrieval ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+
+add_executable (test_bitplane_performance test_bitplane_performance.cpp)
+target_include_directories(test_bitplane_performance PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_bitplane_performance PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_bitplane_performance ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+
+add_executable (test_quantization_factor test_quantization_factor.cpp)
+target_include_directories(test_quantization_factor PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_quantization_factor PUBLIC ${ZFP_INC} ${SZ3_INC} ${ZSTD_INC} ${SZ_CPP_INC})
+target_link_libraries(test_quantization_factor ${ZFP_LIB} ${ZSTD_LIB} ${SZ3_LIB} ${SZ_CPP_LIB})
+
