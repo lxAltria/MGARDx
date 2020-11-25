@@ -19,7 +19,7 @@ public:
 		if(correction_buffer) free(correction_buffer);	
 		if(load_v_buffer) free(load_v_buffer);
 	};
-	void recompose(T * data_, const vector<size_t>& dims, size_t target_level){
+	void recompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false){
 		data = data_;
 		size_t num_elements = 1;
 		for(const auto& d:dims){
@@ -33,7 +33,7 @@ public:
 		size_t h = 1 << (target_level - 1);
 		if(dims.size() == 1){
 			for(int i=0; i<target_level; i++){
-				recompose_level_1D(data, level_dims[i+1][0], h);
+				hierarchical ? recompose_level_1D_hierarhical_basis(data, level_dims[i+1][0], h) : recompose_level_1D(data, level_dims[i+1][0], h);
 				h >>= 1;
 			}
 		}
@@ -41,7 +41,7 @@ public:
 			for(int i=0; i<target_level; i++){
 				size_t n1 = level_dims[i+1][0];
 				size_t n2 = level_dims[i+1][1];
-				recompose_level_2D(data, n1, n2, (T)h, dims[1]);
+				hierarchical ? recompose_level_2D_hierarhical_basis(data, n1, n2, (T)h, dims[1]) : recompose_level_2D(data, n1, n2, (T)h, dims[1]);
 				h >>= 1;
 			}
 		}
@@ -50,47 +50,12 @@ public:
                 size_t n1 = level_dims[i+1][0];
                 size_t n2 = level_dims[i+1][1];
                 size_t n3 = level_dims[i+1][2];
-                recompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+                hierarchical ? recompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]) : recompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
                 h >>= 1;
             }
         }
 	}
-    void recompose_with_hierarchical_basis(T * data_, const vector<size_t>& dims, size_t target_level){
-        data = data_;
-        size_t num_elements = 1;
-        for(const auto& d:dims){
-            num_elements *= d;
-        }
-        data_buffer_size = num_elements * sizeof(T);
-        init(dims);
-        if(level_dims.empty()){
-            level_dims = init_levels(dims, target_level);
-        }
-        size_t h = 1 << (target_level - 1);
-        if(dims.size() == 1){
-            for(int i=0; i<target_level; i++){
-                recompose_level_1D_hierarhical_basis(data, level_dims[i+1][0], h);
-                h >>= 1;
-            }
-        }
-        else if(dims.size() == 2){
-            for(int i=0; i<target_level; i++){
-                size_t n1 = level_dims[i+1][0];
-                size_t n2 = level_dims[i+1][1];
-                recompose_level_2D_hierarhical_basis(data, n1, n2, (T)h, dims[1]);
-                h >>= 1;
-            }
-        }
-        else if(dims.size() == 3){
-            for(int i=0; i<target_level; i++){
-                size_t n1 = level_dims[i+1][0];
-                size_t n2 = level_dims[i+1][1];
-                size_t n3 = level_dims[i+1][2];
-                recompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
-                h >>= 1;
-            }
-        }
-    }
+
 private:
 	unsigned int default_batch_size = 32;
 	size_t data_buffer_size = 0;

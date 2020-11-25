@@ -23,7 +23,7 @@ public:
 		if(load_v_buffer) free(load_v_buffer);
 	};
     // return levels
-	int decompose(T * data_, const vector<size_t>& dims, size_t target_level){
+	int decompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false){
 		data = data_;
 		size_t num_elements = 1;
 		for(const auto& d:dims){
@@ -38,7 +38,7 @@ public:
 			size_t h = 1;
 			size_t n = dims[0];
 			for(int i=0; i<target_level; i++){
-				decompose_level_1D(data, n, h);
+				hierarchical ? decompose_level_1D_with_hierarchical_basis(data, n, h) : decompose_level_1D(data, n, h);
 				n = (n >> 1) + 1;
 				h <<= 1;
 			}
@@ -48,7 +48,7 @@ public:
 			size_t n1 = dims[0];
 			size_t n2 = dims[1];
 			for(int i=0; i<target_level; i++){
-				decompose_level_2D(data, n1, n2, (T)h, dims[1]);
+				hierarchical ? decompose_level_2D_with_hierarchical_basis(data, n1, n2, (T)h, dims[1]) : decompose_level_2D(data, n1, n2, (T)h, dims[1]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				h <<= 1;
@@ -63,7 +63,7 @@ public:
                 current_dims[0] = (n1 >> 1) + 1;
                 current_dims[1] = (n2 >> 1) + 1;
                 current_dims[2] = (n3 >> 1) + 1;
-				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+				hierarchical ? decompose_level_3D_with_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]) : decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				n3 = (n3 >> 1) + 1;
@@ -137,6 +137,14 @@ private:
 		add_correction(n_nodal, nodal_buffer);
 		memcpy(data_pos, data_buffer, n*sizeof(T));
 	}
+    void decompose_level_1D_with_hierarchical_basis(T * data_pos, size_t n, T h, bool nodal_row=true){
+        size_t n_nodal = (n >> 1) + 1;
+        size_t n_coeff = n - n_nodal;
+        T * nodal_buffer = data_buffer;
+        T * coeff_buffer = data_buffer + n_nodal;
+        data_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
+        compute_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
+    }
 	/*
 		2D decomposition
 	*/
@@ -238,6 +246,10 @@ private:
         compute_correction_2D(data_pos, data_buffer, load_v_buffer, n1, n2, n1_nodal, h, stride, w1.data(), b1.data(), w2.data(), b2.data(), default_batch_size);
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
 	}
+    void decompose_level_2D_with_hierarchical_basis(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
+        data_reorder_2D(data_pos, n1, n2, stride);
+        compute_interpolant_difference_2D(data_pos, n1, n2, stride);
+    }
 	/*
 		2D reorder + vertical reorder
 	*/
@@ -389,10 +401,13 @@ private:
             correction_pos += n2_nodal * n3_nodal;
         }
 	}
+    void decompose_level_3D_with_hierarchical_basis(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
+        data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+        compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+    }
+
 };
 
-template class Decomposer<float>;
-template class Decomposer<double>;
 }
 
 #endif
