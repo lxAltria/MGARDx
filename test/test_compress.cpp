@@ -17,7 +17,7 @@ unsigned char * test_compress(vector<T>& data, const vector<size_t>& dims, int t
     MGARD::Decomposer<T> decomposer(use_sz);
     auto compressed_data = decomposer.compress(data.data(), dims, target_level, eb, compressed_size);
     err = clock_gettime(CLOCK_REALTIME, &end);
-    cerr << "Compression time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+    cout << "Compression time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     return compressed_data;
 }
 
@@ -35,8 +35,8 @@ int main(int argc, char ** argv){
     }
     cout << endl;
     double eb = tolerance;
-    cerr << "Data = " << filename << endl;
-    cerr << "Required eb = " << tolerance << endl;
+    cout << "Data = " << filename << endl;
+    cout << "Required eb = " << tolerance << endl;
     size_t num_elements = 0;
     size_t compressed_size = 0;
     unsigned char * compressed = NULL;

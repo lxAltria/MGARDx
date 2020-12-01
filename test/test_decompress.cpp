@@ -16,7 +16,7 @@ T * test_decompress(const unsigned char * compressed, size_t compressed_size, co
     MGARD::Recomposer<T> recomposer;
     auto data_dec = recomposer.decompress(compressed, compressed_size, dims);
     err = clock_gettime(CLOCK_REALTIME, &end);
-    cerr << "Decompression time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
+    cout << "Decompression time: " << (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000 << "s" << endl;
     return data_dec;
 }
 

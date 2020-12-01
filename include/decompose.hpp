@@ -78,10 +78,10 @@ public:
 			for(int i=0; i<target_level; i++){
                 double cc = (1 - c) / (1 - pow(c, i + 1));
                 double level_eb = cc * error_bound / C2 ;
-                if(switch_to_lorenzo(data, n1, n2, n3, dims[1] * dims[2], dims[2], level_eb)){
-                    cout << "switch to SZ (lorenzo) at level " << i << endl;
-                    return i;
-                }
+                // if(switch_to_lorenzo(data, n1, n2, n3, dims[1] * dims[2], dims[2], level_eb)){
+                //     cout << "switch to SZ (lorenzo) at level " << i << endl;
+                //     return i;
+                // }
 				decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
                 // decompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
 				n1 = (n1 >> 1) + 1;
@@ -162,13 +162,15 @@ private:
             // TODO: this is only for 3d
             double C2 = 1 + 3*sqrt(3)/4;
             // double level_eb = eb / (C2 * (target_level + 1));
-            double c = sqrt(8);
-            // fstream file;
-            // file.open("config");
-            // if(file){
-            //     file >> c;
-            //     file.close();
-            // }
+            double c = 8;//sqrt(8);
+            // c = 8;
+            fstream file;
+            file.open("config");
+            if(file){
+                file >> c;
+                file.close();
+            }
+            printf("scaling factor = %.4f\n", c);
             // geometric
             double cc = (1 - c) / (1 - pow(c, target_level + 1));
             double level_eb = cc * eb / C2;
