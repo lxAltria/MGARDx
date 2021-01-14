@@ -42,7 +42,7 @@ name_map[ops[0]] = 'Decomposition'
 name_map[ops[1]] = 'Recomposition'
 
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(8,5))
-width = 0.2  # the width of the bars
+width = 0.15  # the width of the bars
 labels = ['Hurricane', 'NYX', 'SCALE-LETKF', 'QMCPACK']
 x = np.arange(len(labels))  # the label locations
 
@@ -55,13 +55,19 @@ for op in ops:
     perfs[:, 1] = read_time_opt('./result/optimizations/nyx_{}_time.txt'.format(op), 'NYX')
     perfs[:, 2] = read_time_opt('./result/optimizations/scale_{}_time.txt'.format(op), 'SCALE')
     perfs[:, 3] = read_time_opt('./result/optimizations/qmc_{}_time.txt'.format(op), 'QMCPACK')
-    rects1 = ax[i].bar(x - 1.5 * width, perfs[0], width, label='MGARD')
-    rects2 = ax[i].bar(x - 0.5 * width, perfs[1], width, label='DR + DLVC')
-    rects3 = ax[i].bar(x + 0.5 * width, perfs[2], width, label='DR + DLVC + BCC')
-    rects3 = ax[i].bar(x + 1.5 * width, perfs[3], width, label='DR + DLVC + BCC + IVER')
+    perf_DR = np.zeros([4])
+    perf_DR[0] = sizes['Hurricane'] / np.mean(np.loadtxt('./result/optimizations/hurricane_{}_DR_time.txt'.format(op)))
+    perf_DR[1] = sizes['NYX'] / np.mean(np.loadtxt('./result/optimizations/nyx_{}_DR_time.txt'.format(op)))
+    perf_DR[2] = sizes['SCALE'] / np.mean(np.loadtxt('./result/optimizations/scale_{}_DR_time.txt'.format(op)))
+    perf_DR[3] = sizes['QMCPACK'] / np.mean(np.loadtxt('./result/optimizations/qmcpack_{}_DR_time.txt'.format(op)))
+    rects1 = ax[i].bar(x - 2 * width, perfs[0], width, label='MGARD')
+    rects1 = ax[i].bar(x - 1 * width, perf_DR, width, label='DR')
+    rects2 = ax[i].bar(x - 0 * width, perfs[1], width, label='DR + DLVC')
+    rects3 = ax[i].bar(x + 1 * width, perfs[2], width, label='DR + DLVC + BCC')
+    rects3 = ax[i].bar(x + 2 * width, perfs[3], width, label='DR + DLVC + BCC + IVER')
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[i].set_ylabel('Performance (MB/s)')
-    ax[i].set_ylim(0, 350)
+    ax[i].set_ylim(0, 400)
     ax[i].set_title(name_map[op])
     ax[i].set_xticks(x)
     ax[i].set_xticklabels(labels)

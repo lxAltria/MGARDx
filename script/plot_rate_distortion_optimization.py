@@ -67,8 +67,8 @@ name_map[datasets[3]] = 'QMCPACK'
 # selector_19_07_all
 # multilevel_sz
 compressors=['sz', 'mgard_decompose_all_same_eb_OB', 'mgard_decompose_all_levelwise_eb_OB', 'mgard_decompose_all_same_eb_adaptive_OB', 'mgard_revised_OB']
-compressor_name_map=['SZ', 'MGARD', 'Level-wise', 'Adaptive', 'OurMethod']
-styles=['y-*', 'b-^', 'g--s','c-.+', 'r:x']
+compressor_name_map=['SZ', 'MGARD', 'LQ', 'AD', 'MGARD+']
+styles=['b-^', 'c-.+', 'y-*','g--s', 'r:x']
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(8,6))
 
 
@@ -84,8 +84,8 @@ for dataset in datasets:
         j += 1
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[i].set_ylabel('PSNR')
-    ax[i].set_ylim(top=100)
-    ax[i].set_xlim(0, 3.0)
+    ax[i].set_ylim(top=120)
+    ax[i].set_xlim(0, 4.0)
     ax[i].grid(which='major', axis='y')
     ax[i].set_title(name_map[dataset])
 
