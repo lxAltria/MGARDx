@@ -7,6 +7,7 @@
 #include <cstring>
 #include "reorder.hpp"
 #include "utils.hpp"
+#include "correction.hpp"
 
 namespace MGARD{
 
