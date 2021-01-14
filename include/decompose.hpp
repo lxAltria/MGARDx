@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <cstring>
+#include "reorder.hpp"
 #include "utils.hpp"
 
 namespace MGARD{
@@ -93,22 +94,6 @@ private:
 		correction_buffer = (T *) malloc(buffer_size);
 		load_v_buffer = (T *)malloc(buffer_size);
 	}
-	// reorder the data to put all the coefficient to the back
-	void data_reorder_1D(const T * data_pos, size_t n_nodal, size_t n_coeff, T * nodal_buffer, T * coeff_buffer){
-		T * nodal_pos = nodal_buffer;
-		T * coeff_pos = coeff_buffer;
-		T const * cur_data_pos = data_pos;
-		for(int i=0; i<n_coeff; i++){
-			*(nodal_pos++) = *(cur_data_pos++);
-			*(coeff_pos++) = *(cur_data_pos++);
-		}
-		*(nodal_pos++) = *(cur_data_pos++);
-		if(n_nodal == n_coeff + 2){
-			// if even, add a nodal value such that the interpolant
-			// of the last two nodal values equal to the last coefficient
-			*nodal_pos = 2*cur_data_pos[0] - nodal_pos[-1];
-		}
-	}
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l
 	// overwrite the data in N_l \ N_(l-1) in place
@@ -145,42 +130,6 @@ private:
         data_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
         compute_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
     }
-	/*
-		2D decomposition
-	*/
-	// reorder the data to put all the coefficient to the back
-	/*
-		oxoxo		oooxx		oooxx
-		xxxxx	(1)	xxxxx	(2)	oooxx
-		oxoxo	=>	oooxx	=>	oooxx
-		xxxxx		xxxxx		xxxxx
-		oxoxo		oooxx		xxxxx
-	*/
-	void data_reorder_2D(T * data_pos, size_t n1, size_t n2, size_t stride){
-		size_t n1_nodal = (n1 >> 1) + 1;
-		size_t n1_coeff = n1 - n1_nodal;
-		size_t n2_nodal = (n2 >> 1) + 1;
-		size_t n2_coeff = n2 - n2_nodal;
-		T * cur_data_pos = data_pos;
-		T * nodal_pos = data_buffer;
-		T * coeff_pos = data_buffer + n2_nodal;
-		// do reorder (1)
-		for(int i=0; i<n1; i++){
-			data_reorder_1D(cur_data_pos, n2_nodal, n2_coeff, nodal_pos, coeff_pos);
-			memcpy(cur_data_pos, data_buffer, n2 * sizeof(T));
-			cur_data_pos += stride;
-		}
-		if(!(n1 & 1)){
-			// n1 is even, change the last coeff row into nodal row
-			cur_data_pos -= stride;
-			for(int j=0; j<n2; j++){
-				cur_data_pos[j] = 2 * cur_data_pos[j] - cur_data_pos[-stride + j];
-			}
-		}
-		// do reorder (2)
-		// TODO: change to online processing for memory saving
-		switch_rows_2D_by_buffer(data_pos, data_buffer, n1, n2, stride);
-	}
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l for the coefficient rows in 2D
 	// overwrite the data in N_l \ N_(l-1) in place
@@ -235,7 +184,7 @@ private:
         size_t n1_coeff = n1 - n1_nodal;
         size_t n2_nodal = (n2 >> 1) + 1;
         size_t n2_coeff = n2 - n2_nodal;
-		data_reorder_2D(data_pos, n1, n2, stride);
+		data_reorder_2D(data_pos, data_buffer, n1, n2, stride);
 		compute_interpolant_difference_2D(data_pos, n1, n2, stride);
         vector<T> w1(n1_nodal);
         vector<T> b1(n1_nodal);
@@ -247,42 +196,9 @@ private:
         apply_correction_batched(data_pos, data_buffer, n1_nodal, stride, n2_nodal, true);
 	}
     void decompose_level_2D_with_hierarchical_basis(T * data_pos, size_t n1, size_t n2, T h, size_t stride){
-        data_reorder_2D(data_pos, n1, n2, stride);
+        data_reorder_2D(data_pos, data_buffer, n1, n2, stride);
         compute_interpolant_difference_2D(data_pos, n1, n2, stride);
     }
-	/*
-		2D reorder + vertical reorder
-	*/
-	void data_reorder_3D(T * data_pos, size_t n1, size_t n2, size_t n3, size_t dim0_stride, size_t dim1_stride){
-		size_t n1_nodal = (n1 >> 1) + 1;
-		size_t n1_coeff = n1 - n1_nodal;
-		size_t n2_nodal = (n2 >> 1) + 1;
-		size_t n2_coeff = n2 - n2_nodal;
-		size_t n3_nodal = (n3 >> 1) + 1;
-		size_t n3_coeff = n3 - n3_nodal;
-		T * cur_data_pos = data_pos;
-		// do 2D reorder
-		for(int i=0; i<n1; i++){
-			data_reorder_2D(cur_data_pos, n2, n3, dim1_stride);
-			cur_data_pos += dim0_stride;
-		}
-		if(!(n1 & 1)){
-			// n1 is even, change the last coeff plane into nodal plane
-			cur_data_pos -= dim0_stride;
-			for(int j=0; j<n2; j++){
-				for(int k=0; k<n3; k++){
-					cur_data_pos[k] = 2 * cur_data_pos[k] - cur_data_pos[- dim0_stride + k];
-				}
-				cur_data_pos += dim1_stride;
-			}
-		}
-		cur_data_pos = data_pos;
-		// reorder vertically
-		for(int j=0; j<n2; j++){
-			switch_rows_2D_by_buffer(cur_data_pos, data_buffer, n1, n3, dim0_stride);
-			cur_data_pos += dim1_stride;
-		}
-	}
 	/*
 		2D computation + vertical computation for coefficient plane 
 	*/
@@ -387,7 +303,7 @@ private:
 	}
 	// decompse n1 x n2 x n3 data into coarse level (n1/2 x n2/2 x n3/2)
 	void decompose_level_3D(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
-		data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+		data_reorder_3D(data_pos, data_buffer, n1, n2, n3, dim0_stride, dim1_stride);
 		compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
         size_t n1_nodal = (n1 >> 1) + 1;
         size_t n2_nodal = (n2 >> 1) + 1;
@@ -402,7 +318,7 @@ private:
         }
 	}
     void decompose_level_3D_with_hierarchical_basis(T * data_pos, size_t n1, size_t n2, size_t n3, T h, size_t dim0_stride, size_t dim1_stride){
-        data_reorder_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
+        data_reorder_3D(data_pos, data_buffer, n1, n2, n3, dim0_stride, dim1_stride);
         compute_interpolant_difference_3D(data_pos, n1, n2, n3, dim0_stride, dim1_stride);
     }
 
