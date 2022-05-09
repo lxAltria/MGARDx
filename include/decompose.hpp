@@ -25,11 +25,23 @@ public:
 		if(load_v_buffer) free(load_v_buffer);
 	};
     // return levels
-	int decompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false){
+	int decompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false, vector<size_t> strides=vector<size_t>()){
 		data = data_;
 		size_t num_elements = 1;
 		for(const auto& d:dims){
 			num_elements *= d;
+		}
+		if(strides.size() == 0){
+			strides = vector<size_t>(dims.size());
+			size_t stride = 1;
+			for(int i=dims.size()-1; i>=0; i--){
+				strides[i] = stride;
+				stride *= dims[i];
+			}
+			for(int i=0; i<dims.size(); i++){
+				cout << strides[i] << " ";
+			}
+			cout << endl;
 		}
 		data_buffer_size = num_elements * sizeof(T);
         int max_level = log2(*min_element(dims.begin(), dims.end()));
@@ -50,7 +62,7 @@ public:
 			size_t n1 = dims[0];
 			size_t n2 = dims[1];
 			for(int i=0; i<target_level; i++){
-				hierarchical ? decompose_level_2D_with_hierarchical_basis(data, n1, n2, (T)h, dims[1]) : decompose_level_2D(data, n1, n2, (T)h, dims[1]);
+				hierarchical ? decompose_level_2D_with_hierarchical_basis(data, n1, n2, (T)h, strides[0]) : decompose_level_2D(data, n1, n2, (T)h, strides[0]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				h <<= 1;
@@ -65,7 +77,7 @@ public:
                 current_dims[0] = (n1 >> 1) + 1;
                 current_dims[1] = (n2 >> 1) + 1;
                 current_dims[2] = (n3 >> 1) + 1;
-				hierarchical ? decompose_level_3D_with_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]) : decompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+				hierarchical ? decompose_level_3D_with_hierarchical_basis(data, n1, n2, n3, (T)h, strides[0], strides[1]) : decompose_level_3D(data, n1, n2, n3, (T)h, strides[0], strides[1]);
 				n1 = (n1 >> 1) + 1;
 				n2 = (n2 >> 1) + 1;
 				n3 = (n3 >> 1) + 1;

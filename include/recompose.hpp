@@ -21,11 +21,23 @@ public:
 		if(correction_buffer) free(correction_buffer);	
 		if(load_v_buffer) free(load_v_buffer);
 	};
-	void recompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false){
+	void recompose(T * data_, const vector<size_t>& dims, size_t target_level, bool hierarchical=false, vector<size_t> strides=vector<size_t>()){
 		data = data_;
 		size_t num_elements = 1;
 		for(const auto& d:dims){
 			num_elements *= d;
+		}
+		if(strides.size() == 0){
+			strides = vector<size_t>(dims.size());
+			size_t stride = 1;
+			for(int i=dims.size()-1; i>=0; i--){
+				strides[i] = stride;
+				stride *= dims[i];
+			}
+			for(int i=0; i<dims.size(); i++){
+				cout << strides[i] << " ";
+			}
+			cout << endl;
 		}
 		data_buffer_size = num_elements * sizeof(T);
 		init(dims);
@@ -43,7 +55,7 @@ public:
 			for(int i=0; i<target_level; i++){
 				size_t n1 = level_dims[i+1][0];
 				size_t n2 = level_dims[i+1][1];
-				hierarchical ? recompose_level_2D_hierarhical_basis(data, n1, n2, (T)h, dims[1]) : recompose_level_2D(data, n1, n2, (T)h, dims[1]);
+				hierarchical ? recompose_level_2D_hierarhical_basis(data, n1, n2, (T)h, strides[0]) : recompose_level_2D(data, n1, n2, (T)h, strides[0]);
 				h >>= 1;
 			}
 		}
@@ -52,7 +64,7 @@ public:
                 size_t n1 = level_dims[i+1][0];
                 size_t n2 = level_dims[i+1][1];
                 size_t n3 = level_dims[i+1][2];
-                hierarchical ? recompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]) : recompose_level_3D(data, n1, n2, n3, (T)h, dims[1] * dims[2], dims[2]);
+                hierarchical ? recompose_level_3D_hierarchical_basis(data, n1, n2, n3, (T)h, strides[0], strides[1]) : recompose_level_3D(data, n1, n2, n3, (T)h, strides[0], strides[1]);
                 h >>= 1;
             }
         }
