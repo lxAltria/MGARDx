@@ -37,7 +37,9 @@ void test(string filename, const vector<size_t>& dims, int target_level){
     auto data = MGARD::readfile<T>(filename.c_str(), num_elements);
     auto data_ori(data);
     test_decompose(data, dims, target_level);
+    MGARD::writefile("decomposed_pyramid.dat", data.data(), data.size());
     test_recompose(data, dims, target_level);
+    MGARD::writefile("decomposed.dat", data.data(), data.size());
     MGARD::print_statistics(data_ori.data(), data.data(), num_elements);
 }
 
