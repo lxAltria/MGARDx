@@ -142,6 +142,7 @@ private:
         T * coeff_buffer = data_buffer + n_nodal;
         data_reorder_1D(data_pos, n_nodal, n_coeff, nodal_buffer, coeff_buffer);
         compute_interpolant_difference_1D(n_coeff, nodal_buffer, coeff_buffer);
+		memcpy(data_pos, data_buffer, n*sizeof(T));
     }
 	// compute the difference between original value 
 	// and interpolant (I - PI_l)Q_l for the coefficient rows in 2D
